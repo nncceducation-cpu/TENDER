@@ -1,0 +1,6 @@
+# Normalise line endings so the repo is clean on Windows and Linux checkouts.
+* text=auto eol=lf
+
+*.png binary
+*.task binary
+*.wasm binary
