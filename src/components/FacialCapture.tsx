@@ -40,6 +40,19 @@ export const FacialCapture = ({ onEvidence }: { onEvidence?: (e: AiEvidence) => 
   const ctx = useStore((s) => s.ctx);
   const setAiEvidence = useStore((s) => s.setAiEvidence);
 
+  /**
+   * getUserMedia requires a secure context. Opening the standalone build from a
+   * file:// origin is not one, so the panel says why instead of throwing an
+   * opaque permission error when the button is pressed.
+   */
+  const fromDisk = typeof location !== 'undefined' && location.protocol === 'file:';
+  const captureAvailable =
+    !fromDisk &&
+    typeof window !== 'undefined' &&
+    window.isSecureContext &&
+    typeof navigator !== 'undefined' &&
+    Boolean(navigator.mediaDevices?.getUserMedia);
+
   const stopAll = useCallback(() => {
     cancelAnimationFrame(rafRef.current);
     cryRef.current?.stop();
@@ -243,13 +256,23 @@ export const FacialCapture = ({ onEvidence }: { onEvidence?: (e: AiEvidence) => 
           </div>
         )}
 
+        {!captureAvailable && (
+          <Callout tone="warn" title="Camera unavailable from this origin">
+            {fromDisk
+              ? 'This page was opened directly from disk. Chrome will not grant camera access to a file:// origin, and the model files cannot be loaded from one either. Every other screen works normally here.'
+              : 'The browser will only grant camera access in a secure context.'}{' '}
+            To use the facial coding layer, serve the application over <code>localhost</code>{' '}
+            with <code>npm run dev</code>, or over HTTPS on the unit network.
+          </Callout>
+        )}
+
         <div className="flex flex-wrap gap-2">
           {mode === 'idle' && (
             <>
-              <Button onClick={beginCalibration} variant="ghost">
+              <Button onClick={beginCalibration} variant="ghost" disabled={!captureAvailable}>
                 <Gauge className="w-4 h-4" /> {calibration ? 'Re-record baseline' : 'Record baseline'}
               </Button>
-              <Button onClick={beginObservation} disabled={!calibration}>
+              <Button onClick={beginObservation} disabled={!calibration || !captureAvailable}>
                 <Camera className="w-4 h-4" /> Start observation window
               </Button>
             </>
