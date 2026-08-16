@@ -33,6 +33,8 @@ export class CryAnalyser {
   private source: MediaStreamAudioSourceNode | null = null;
   private samples: { t: number; rms: number; f0: number | null }[] = [];
   private raf = 0;
+  private lastF0At = 0;
+  private lastF0: number | null = null;
 
   private options: CryCaptureOptions;
 
@@ -55,8 +57,22 @@ export class CryAnalyser {
       if (!this.analyser || !this.ctx) return;
       this.analyser.getFloatTimeDomainData(buffer);
       const rms = Math.sqrt(buffer.reduce((s, x) => s + x * x, 0) / buffer.length);
-      const f0 = rms > 0.01 ? detectF0(buffer, this.ctx.sampleRate) : null;
-      this.samples.push({ t: performance.now() - started, rms, f0 });
+      const now = performance.now();
+
+      /**
+       * Autocorrelation is quadratic in the search range and was running on every
+       * animation frame alongside face landmarking. Cry pitch does not change
+       * meaningfully within 50 ms, so it is measured at 20 Hz and held between
+       * measurements. Amplitude, which is cheap, is still sampled every frame.
+       */
+      if (rms > 0.01 && now - this.lastF0At > 50) {
+        this.lastF0At = now;
+        this.lastF0 = detectF0(buffer, this.ctx.sampleRate);
+      } else if (rms <= 0.01) {
+        this.lastF0 = null;
+      }
+
+      this.samples.push({ t: now - started, rms, f0: this.lastF0 });
       this.raf = requestAnimationFrame(tick);
     };
     tick();

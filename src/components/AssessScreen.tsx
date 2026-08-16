@@ -10,6 +10,9 @@ import { FacialCapture } from './FacialCapture';
 import { VisionAssist } from './VisionAssist';
 import type { PainConstruct, ScaleId, ScoredItem } from '../domain/types';
 
+/** How long a capture window stays a fair description of the infant. */
+const STALE_MINUTES = 10;
+
 const CONSTRUCTS: { id: PainConstruct; label: string; blurb: string }[] = [
   {
     id: 'acute_procedural',
@@ -44,6 +47,15 @@ export const AssessScreen = () => {
 
   const chosen = recommendations.find((r) => r.scale.id === s.selectedScale);
 
+  /**
+   * A capture window describes the infant during those seconds and no longer. The
+   * suggestion panel says how old the window is, and marks it once it is old
+   * enough that the state it measured may no longer hold.
+   */
+  const evidenceStale =
+    evidence !== null &&
+    Date.now() - new Date(evidence.capturedAt).getTime() > STALE_MINUTES * 60_000;
+
   const acceptSuggestions = () => {
     if (!evidence) return;
     const next = { ...values };
@@ -74,6 +86,9 @@ export const AssessScreen = () => {
       });
       s.addAssessment(assessment);
       setValues({});
+      // The capture window belonged to this assessment. Leaving it in place would
+      // let a window recorded twenty minutes ago pre-fill the next one.
+      s.setAiEvidence(null);
     } catch (e) {
       setError(
         e instanceof IncompleteAssessmentError
@@ -183,15 +198,23 @@ export const AssessScreen = () => {
       <Card title={`${scale.name} scoring`} icon={<Activity className="w-5 h-5 text-sky-700" />}>
         <div className="space-y-4">
           {evidence && Object.keys(evidence.suggestions).length > 0 && (
-            <Callout tone="info" title="Model suggestions available">
+            <Callout tone={evidenceStale ? 'warn' : 'info'} title="Model suggestions available">
               <p>
                 {Object.keys(evidence.suggestions).length} of the {items.length} items on this scale
-                have a suggested value derived from the capture window. Accepting them records them as
+                have a suggested value derived from the capture window closed at{' '}
+                {new Date(evidence.capturedAt).toLocaleTimeString()}. Accepting them records them as
                 model-derived in the audit trail; you can override any of them afterwards.
               </p>
+              {evidenceStale && (
+                <p className="mt-1 font-semibold">
+                  That window is more than {STALE_MINUTES} minutes old. An infant's state changes
+                  faster than that. Record a new window rather than accepting these.
+                </p>
+              )}
               <div className="mt-2">
                 <Button variant="ghost" onClick={acceptSuggestions}>
-                  <Sparkles className="w-4 h-4" /> Accept suggestions
+                  <Sparkles className="w-4 h-4" />
+                  {evidenceStale ? 'Accept anyway' : 'Accept suggestions'}
                 </Button>
               </div>
             </Callout>

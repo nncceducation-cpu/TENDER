@@ -104,6 +104,32 @@ export const buildSuggestions = (
         };
       }
 
+      if (scaleId === 'COMFORTneo') {
+        /**
+         * COMFORT facial tension is a five-level judgement of how much of the
+         * face is tense and for how long. The on-device coder measures exactly
+         * those two things: how many distinct pain-related actions were present,
+         * and what proportion of the window they were present for. The mapping
+         * below is a local convention, not a published one, and says so.
+         */
+        const p3 = ['brow_bulge', 'eye_squeeze', 'nasolabial_furrow'] as const;
+        const proportions = p3.map((a) => facial.proportionPresent[a] ?? 0);
+        const peak = Math.max(...proportions);
+        const spread = proportions.filter((x) => x >= 0.1).length;
+
+        let value: number;
+        if (peak < 0.1) value = 2; // normal facial tone; level 1 is total relaxation, which coding cannot establish
+        else if (peak < 0.4) value = 3; // tension in some muscles, not sustained
+        else if (spread >= 2 || peak < 0.7) value = 4; // tension throughout, sustained
+        else value = 5; // contorted and grimacing
+
+        suggestions['facial_tension'] = {
+          value,
+          confidence: conf * 0.7,
+          rationale: `Strongest pain-related action present in ${(peak * 100).toFixed(0)}% of usable seconds, with ${spread} of 3 actions above threshold. Mapped to level ${value}. This mapping is a local convention; level 1, total relaxation, is never proposed because coding cannot establish it.`,
+        };
+      }
+
       if (scaleId === 'NIPS') {
         const anyPain = Math.max(
           facial.proportionPresent.brow_bulge ?? 0,

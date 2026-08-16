@@ -36,20 +36,42 @@ describe('per-infant calibration', () => {
     }));
 
   it('refuses to calibrate from too short a baseline', () => {
-    const r = calibrate('BED-1', baseline(60), { fps: 15, minSeconds: 20 });
+    const r = calibrate('BED-1', baseline(60), { elapsedSeconds: 4, minSeconds: 20 });
     expect('error' in r).toBe(true);
+    if ('error' in r) expect(r.error).toMatch(/at least 20 s is required/);
   });
 
   it('builds a baseline from a long enough settled epoch', () => {
-    const r = calibrate('BED-1', baseline(450), { fps: 15, minSeconds: 20 });
+    const r = calibrate('BED-1', baseline(450), { elapsedSeconds: 30, minSeconds: 20 });
     expect('error' in r).toBe(false);
     if ('error' in r) return;
     expect(r.baselineSeconds).toBeCloseTo(30, 0);
     expect(r.k).toBe(DEFAULT_K);
   });
 
+  it('measures duration against the wall clock, not an assumed frame rate', () => {
+    // The same 10 real seconds must be rejected whether the loop ran at 30 or 60 fps.
+    const at30 = calibrate('BED-1', baseline(300), { elapsedSeconds: 10, minSeconds: 20 });
+    const at60 = calibrate('BED-1', baseline(600), { elapsedSeconds: 10, minSeconds: 20 });
+    expect('error' in at30).toBe(true);
+    expect('error' in at60).toBe(true);
+  });
+
+  it('distinguishes no face at all from a short epoch', () => {
+    const r = calibrate('BED-1', [], { elapsedSeconds: 30 });
+    expect('error' in r).toBe(true);
+    if ('error' in r) expect(r.error).toMatch(/No face was detected at any point/);
+  });
+
+  it('distinguishes a detected face that was never usable', () => {
+    const poor = Array.from({ length: 600 }, () => ({ activations: activations(0.05), quality: 0.1 }));
+    const r = calibrate('BED-1', poor, { elapsedSeconds: 30 });
+    expect('error' in r).toBe(true);
+    if ('error' in r) expect(r.error).toMatch(/never at usable quality/);
+  });
+
   it('never builds a baseline for an action it cannot measure', () => {
-    const r = calibrate('BED-1', baseline(450), { fps: 15 });
+    const r = calibrate('BED-1', baseline(450), { elapsedSeconds: 30 });
     if ('error' in r) throw new Error(r.error);
     for (const a of UNAVAILABLE_ACTIONS) expect(r.baselines[a]).toBeUndefined();
   });
@@ -59,19 +81,20 @@ describe('per-infant calibration', () => {
       activations: activations(i % 2 === 0 ? 0.05 : 0.8),
       quality: 0.9,
     }));
-    const r = calibrate('BED-1', noisy, { fps: 15 });
+    const r = calibrate('BED-1', noisy, { elapsedSeconds: 30 });
     if ('error' in r) throw new Error(r.error);
     expect(r.notes.join(' ')).toMatch(/may not have been settled/);
   });
 
-  it('discards low-quality frames from the baseline', () => {
+  it('discards low-quality frames and reports the proportion lost', () => {
     const mixed = [
       ...Array.from({ length: 200 }, () => ({ activations: activations(0.05), quality: 0.2 })),
       ...Array.from({ length: 100 }, () => ({ activations: activations(0.05), quality: 0.9 })),
     ];
-    const r = calibrate('BED-1', mixed, { fps: 15, minSeconds: 20 });
-    // Only 100 usable frames at 15 fps is 6.7 s, below the minimum.
+    // 30 s elapsed, but only a third of frames usable, so 10 s of usable baseline.
+    const r = calibrate('BED-1', mixed, { elapsedSeconds: 30, minSeconds: 20 });
     expect('error' in r).toBe(true);
+    if ('error' in r) expect(r.error).toMatch(/67% of frames were discarded/);
   });
 });
 
@@ -158,6 +181,80 @@ describe('PIPP-R facial suggestions', () => {
     });
     expect(suggestions['hr_change'].value).toBe(2);
     expect(suggestions['spo2_change'].value).toBe(2);
+  });
+});
+
+describe('COMFORTneo facial tension mapping', () => {
+  const summaryWith = (props: Partial<Record<NfcsAction, number>>) => ({
+    windowSeconds: 30,
+    framesScored: 450,
+    proportionPresent: {
+      ...(Object.fromEntries(ACTIONS.map((a) => [a, 0])) as Record<NfcsAction, number>),
+      ...props,
+    },
+    nfcs7Sum: 0,
+    nfcsP3Sum: 0,
+    meanQuality: 0.9,
+    secondsUsable: 30,
+  });
+
+  it('never proposes level 1, because coding cannot establish total relaxation', () => {
+    const { suggestions } = buildSuggestions('COMFORTneo', summaryWith({}), undefined, undefined);
+    expect(suggestions['facial_tension'].value).toBe(2);
+  });
+
+  it('proposes level 3 for brief tension in one action', () => {
+    const { suggestions } = buildSuggestions(
+      'COMFORTneo',
+      summaryWith({ brow_bulge: 0.25 }),
+      undefined,
+      undefined,
+    );
+    expect(suggestions['facial_tension'].value).toBe(3);
+  });
+
+  it('proposes level 4 when tension is spread across actions', () => {
+    const { suggestions } = buildSuggestions(
+      'COMFORTneo',
+      summaryWith({ brow_bulge: 0.9, eye_squeeze: 0.5 }),
+      undefined,
+      undefined,
+    );
+    expect(suggestions['facial_tension'].value).toBe(4);
+  });
+
+  it('proposes level 5 only for a single sustained dominant action', () => {
+    const { suggestions } = buildSuggestions(
+      'COMFORTneo',
+      summaryWith({ brow_bulge: 0.95 }),
+      undefined,
+      undefined,
+    );
+    expect(suggestions['facial_tension'].value).toBe(5);
+  });
+
+  it('labels the mapping as a local convention', () => {
+    const { suggestions } = buildSuggestions(
+      'COMFORTneo',
+      summaryWith({ brow_bulge: 0.5 }),
+      undefined,
+      undefined,
+    );
+    expect(suggestions['facial_tension'].rationale).toMatch(/local convention/);
+  });
+
+  it('stays inside the instrument range for every input', () => {
+    for (let p = 0; p <= 1.001; p += 0.05) {
+      const { suggestions } = buildSuggestions(
+        'COMFORTneo',
+        summaryWith({ brow_bulge: p, eye_squeeze: p / 2, nasolabial_furrow: p / 3 }),
+        undefined,
+        undefined,
+      );
+      const v = suggestions['facial_tension'].value;
+      expect(v).toBeGreaterThanOrEqual(1);
+      expect(v).toBeLessThanOrEqual(5);
+    }
   });
 });
 

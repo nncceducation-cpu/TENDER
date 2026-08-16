@@ -143,17 +143,44 @@ export const DEFAULT_K = 3;
 export const calibrate = (
   localId: string,
   baselineFrames: { activations: Record<NfcsAction, number>; quality: number }[],
-  options: { k?: number; minSeconds?: number; fps?: number } = {},
+  options: { k?: number; minSeconds?: number; elapsedSeconds?: number; fps?: number } = {},
 ): InfantCalibration | { error: string } => {
   const k = options.k ?? DEFAULT_K;
-  const fps = options.fps ?? 15;
   const minSeconds = options.minSeconds ?? 20;
 
   const usable = baselineFrames.filter((f) => f.quality >= 0.45);
-  const seconds = usable.length / fps;
+
+  /**
+   * Usable duration is measured against the wall clock, not against an assumed
+   * frame rate. Deriving it from a fixed fps made the minimum baseline length
+   * depend on the hardware: at an assumed 30 fps a laptop running the loop at 60
+   * accepted ten real seconds as twenty.
+   */
+  const elapsed = options.elapsedSeconds;
+  const seconds =
+    elapsed !== undefined && baselineFrames.length > 0
+      ? elapsed * (usable.length / baselineFrames.length)
+      : usable.length / (options.fps ?? 15);
+
+  if (baselineFrames.length === 0) {
+    return {
+      error:
+        'No face was detected at any point during the baseline. Check the camera view, the lighting and the angle, then record again.',
+    };
+  }
+  if (usable.length === 0) {
+    return {
+      error:
+        'A face was detected but never at usable quality. Move the camera closer, improve the lighting, or reduce the viewing angle, then record again.',
+    };
+  }
   if (seconds < minSeconds) {
     return {
-      error: `Baseline is ${seconds.toFixed(0)} s of usable video; at least ${minSeconds} s is required. Record a longer settled epoch.`,
+      error: `Only ${seconds.toFixed(0)} s of the baseline was usable, and at least ${minSeconds} s is required. ${
+        usable.length < baselineFrames.length
+          ? `${Math.round((1 - usable.length / baselineFrames.length) * 100)}% of frames were discarded for quality. `
+          : ''
+      }Record a longer settled epoch.`,
     };
   }
 

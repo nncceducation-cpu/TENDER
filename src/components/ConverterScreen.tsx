@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ArrowLeftRight } from 'lucide-react';
 import { useStore } from '../state/store';
 import { Callout, Card, Field, Stat, inputClass } from './ui';
@@ -6,9 +6,86 @@ import { convertOpioids, type ConversionInput, type Unit } from '../engine/opioi
 
 const num = (v: string): number | undefined => (v === '' ? undefined : Number(v));
 
+type FormState = {
+  morphineInfusion: string;
+  morphineBolus: string;
+  morphineBolusFreq: string;
+  fentanylInfusion: string;
+  fentanylBolus: string;
+  fentanylBolusFreq: string;
+  hydromorphoneInfusion: string;
+  hydromorphoneBolus: string;
+  hydromorphoneBolusFreq: string;
+  oralMorphine: string;
+  oralMorphineUnit: Unit;
+  oralHydromorphone: string;
+  oralHydromorphoneUnit: Unit;
+};
+
+type NumericField = Exclude<keyof FormState, 'oralMorphineUnit' | 'oralHydromorphoneUnit'>;
+
+/**
+ * Defined at module scope, deliberately.
+ *
+ * When a component is declared inside another component's body, React sees a new
+ * component type on every render and unmounts the old subtree rather than
+ * updating it. The inputs are recreated, focus is lost, and the field ends up
+ * holding whatever single character was typed before the first re-render. This
+ * row was written that way and the converter could not be typed into.
+ */
+const DrugRow = ({
+  name,
+  form,
+  onChange,
+  infusionKey,
+  bolusKey,
+  freqKey,
+}: {
+  name: string;
+  form: FormState;
+  onChange: (key: NumericField, value: string) => void;
+  infusionKey: NumericField;
+  bolusKey: NumericField;
+  freqKey: NumericField;
+}) => (
+  <div className="grid sm:grid-cols-4 gap-3 items-end border-b border-slate-100 pb-4">
+    <p className="text-sm font-semibold text-slate-700 sm:pb-2">{name}</p>
+    <Field label="Infusion (mcg/kg/hr)">
+      <input
+        type="number"
+        step="0.01"
+        min="0"
+        className={inputClass}
+        value={form[infusionKey]}
+        onChange={(e) => onChange(infusionKey, e.target.value)}
+      />
+    </Field>
+    <Field label="Bolus (mcg/kg)">
+      <input
+        type="number"
+        step="0.01"
+        min="0"
+        className={inputClass}
+        value={form[bolusKey]}
+        onChange={(e) => onChange(bolusKey, e.target.value)}
+      />
+    </Field>
+    <Field label="Boluses per day">
+      <input
+        type="number"
+        step="1"
+        min="0"
+        className={inputClass}
+        value={form[freqKey]}
+        onChange={(e) => onChange(freqKey, e.target.value)}
+      />
+    </Field>
+  </div>
+);
+
 export const ConverterScreen = () => {
   const weightKg = useStore((s) => s.ctx.weightKg);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<FormState>({
     morphineInfusion: '',
     morphineBolus: '',
     morphineBolusFreq: '',
@@ -55,32 +132,9 @@ export const ConverterScreen = () => {
   };
 
   const result = convertOpioids(input);
-  const set = (k: keyof typeof form) => (e: { target: { value: string } }) =>
-    setForm({ ...form, [k]: e.target.value });
-
-  const DrugRow = ({
-    name,
-    infusionKey,
-    bolusKey,
-    freqKey,
-  }: {
-    name: string;
-    infusionKey: keyof typeof form;
-    bolusKey: keyof typeof form;
-    freqKey: keyof typeof form;
-  }) => (
-    <div className="grid sm:grid-cols-4 gap-3 items-end border-b border-slate-100 pb-4">
-      <p className="text-sm font-semibold text-slate-700 sm:pb-2">{name}</p>
-      <Field label="Infusion (mcg/kg/hr)">
-        <input type="number" step="0.01" min="0" className={inputClass} value={form[infusionKey] as string} onChange={set(infusionKey)} />
-      </Field>
-      <Field label="Bolus (mcg/kg)">
-        <input type="number" step="0.01" min="0" className={inputClass} value={form[bolusKey] as string} onChange={set(bolusKey)} />
-      </Field>
-      <Field label="Boluses per day">
-        <input type="number" step="1" min="0" className={inputClass} value={form[freqKey] as string} onChange={set(freqKey)} />
-      </Field>
-    </div>
+  const setNumeric = useCallback(
+    (key: NumericField, value: string) => setForm((f) => ({ ...f, [key]: value })),
+    [],
   );
 
   return (
@@ -96,14 +150,35 @@ export const ConverterScreen = () => {
             <Callout tone="danger">Enter a weight on the context screen before converting.</Callout>
           )}
 
-          <DrugRow name="IV morphine" infusionKey="morphineInfusion" bolusKey="morphineBolus" freqKey="morphineBolusFreq" />
-          <DrugRow name="IV fentanyl" infusionKey="fentanylInfusion" bolusKey="fentanylBolus" freqKey="fentanylBolusFreq" />
-          <DrugRow name="IV hydromorphone" infusionKey="hydromorphoneInfusion" bolusKey="hydromorphoneBolus" freqKey="hydromorphoneBolusFreq" />
+          <DrugRow
+            name="IV morphine"
+            form={form}
+            onChange={setNumeric}
+            infusionKey="morphineInfusion"
+            bolusKey="morphineBolus"
+            freqKey="morphineBolusFreq"
+          />
+          <DrugRow
+            name="IV fentanyl"
+            form={form}
+            onChange={setNumeric}
+            infusionKey="fentanylInfusion"
+            bolusKey="fentanylBolus"
+            freqKey="fentanylBolusFreq"
+          />
+          <DrugRow
+            name="IV hydromorphone"
+            form={form}
+            onChange={setNumeric}
+            infusionKey="hydromorphoneInfusion"
+            bolusKey="hydromorphoneBolus"
+            freqKey="hydromorphoneBolusFreq"
+          />
 
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label="Existing oral morphine, total per day" hint="Choose the unit deliberately">
               <div className="flex gap-2">
-                <input type="number" step="0.01" min="0" className={inputClass} value={form.oralMorphine} onChange={set('oralMorphine')} />
+                <input type="number" step="0.01" min="0" className={inputClass} value={form.oralMorphine} onChange={(e) => setNumeric('oralMorphine', e.target.value)} />
                 <select
                   className={inputClass}
                   value={form.oralMorphineUnit}
@@ -116,7 +191,7 @@ export const ConverterScreen = () => {
             </Field>
             <Field label="Existing oral hydromorphone, total per day">
               <div className="flex gap-2">
-                <input type="number" step="0.01" min="0" className={inputClass} value={form.oralHydromorphone} onChange={set('oralHydromorphone')} />
+                <input type="number" step="0.01" min="0" className={inputClass} value={form.oralHydromorphone} onChange={(e) => setNumeric('oralHydromorphone', e.target.value)} />
                 <select
                   className={inputClass}
                   value={form.oralHydromorphoneUnit}

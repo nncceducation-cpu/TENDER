@@ -12,6 +12,17 @@ import type { NfcsAction, NfcsFrame, AiEvidence } from '../domain/types';
 type Mode = 'idle' | 'calibrating' | 'observing';
 
 /**
+ * Landmarking runs at this rate rather than at the display refresh rate.
+ *
+ * NFCS is coded per second and frames are collapsed into one-second bins by
+ * majority vote, so fifteen samples a second is ample evidence for each bin.
+ * Running inference on every animation frame quadrupled the CPU cost for no
+ * measurable gain and, on a workstation without a usable GPU, left the main
+ * thread too busy to respond to the button that ends the recording.
+ */
+const DETECT_INTERVAL_MS = 1000 / 15;
+
+/**
  * Bedside capture panel.
  *
  * Two things about the flow are deliberate. The camera is never on unless the
@@ -27,8 +38,16 @@ export const FacialCapture = ({ onEvidence }: { onEvidence?: (e: AiEvidence) => 
   const baselineRef = useRef<{ activations: Record<NfcsAction, number>; quality: number }[]>([]);
   const rafRef = useRef(0);
   const startedRef = useRef(0);
+  const lastUiUpdateRef = useRef(0);
+  const lastDetectRef = useRef(0);
 
   const [mode, setMode] = useState<Mode>('idle');
+  /**
+   * Compiling the landmarker WASM and initialising the graph takes a few seconds
+   * the first time. Without a busy state the buttons stayed live during that
+   * window, and a second click started a second load.
+   */
+  const [starting, setStarting] = useState(false);
   const [status, setStatus] = useState<string>('Camera off.');
   const [problems, setProblems] = useState<string[]>([]);
   const [elapsed, setElapsed] = useState(0);
@@ -65,15 +84,30 @@ export const FacialCapture = ({ onEvidence }: { onEvidence?: (e: AiEvidence) => 
   useEffect(() => () => stopAll(), [stopAll]);
 
   const startStream = async (withAudio: boolean) => {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'environment' },
-      audio: withAudio,
-    });
+    // 960x540 is well above what facial action coding needs and costs less to
+    // move through the pipeline than 720p on a workstation without a usable GPU.
+    const video = { width: { ideal: 960 }, height: { ideal: 540 }, facingMode: 'environment' };
+
+    /**
+     * Requesting audio and video together fails as a unit. A workstation with no
+     * microphone, or a user who declines the microphone prompt, would lose facial
+     * coding as well. Audio is optional, so it is requested separately and its
+     * absence is tolerated.
+     */
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video, audio: withAudio });
+    } catch (e) {
+      if (!withAudio) throw e;
+      stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
+      setStatus('Microphone unavailable, so cry features will not be captured. Facial coding continues.');
+      withAudio = false;
+    }
     if (!videoRef.current) throw new Error('Video element not mounted.');
     videoRef.current.srcObject = stream;
     await videoRef.current.play();
 
-    if (withAudio) {
+    if (withAudio && stream.getAudioTracks().length > 0) {
       cryRef.current = new CryAnalyser();
       await cryRef.current.start(stream);
     }
@@ -91,10 +125,26 @@ export const FacialCapture = ({ onEvidence }: { onEvidence?: (e: AiEvidence) => 
         }
 
         const now = performance.now();
+        if (now - lastDetectRef.current < DETECT_INTERVAL_MS) {
+          rafRef.current = requestAnimationFrame(tick);
+          return;
+        }
+        lastDetectRef.current = now;
+
         const result = service.detect(video, now);
         const q = assessFrameQuality(result, video.videoWidth, video.videoHeight);
-        setProblems(q.problems);
-        setElapsed((now - startedRef.current) / 1000);
+
+        /**
+         * Coding runs every frame; the interface updates four times a second.
+         * Setting React state on every animation frame re-rendered this panel at
+         * the camera's frame rate, which competed with the landmarker for the
+         * main thread and dropped the frames the coding depends on.
+         */
+        if (now - lastUiUpdateRef.current > 250) {
+          lastUiUpdateRef.current = now;
+          setProblems(q.problems);
+          setElapsed((now - startedRef.current) / 1000);
+        }
 
         if (result && result.faceLandmarks.length > 0) {
           if (collecting === 'baseline') {
@@ -113,7 +163,9 @@ export const FacialCapture = ({ onEvidence }: { onEvidence?: (e: AiEvidence) => 
   );
 
   const beginCalibration = async () => {
+    if (starting || mode !== 'idle') return;
     setError(null);
+    setStarting(true);
     try {
       serviceRef.current ??= new FaceLandmarkerService();
       setStatus('Loading the on-device model...');
@@ -121,6 +173,7 @@ export const FacialCapture = ({ onEvidence }: { onEvidence?: (e: AiEvidence) => 
       await startStream(false);
       baselineRef.current = [];
       startedRef.current = performance.now();
+      lastDetectRef.current = 0;
       setMode('calibrating');
       setStatus('Recording a settled baseline. Do not handle the infant.');
       loop('baseline');
@@ -131,13 +184,18 @@ export const FacialCapture = ({ onEvidence }: { onEvidence?: (e: AiEvidence) => 
           : String(e),
       );
       setMode('idle');
+    } finally {
+      setStarting(false);
     }
   };
 
   const finishCalibration = () => {
     cancelAnimationFrame(rafRef.current);
+    const elapsedSeconds = (performance.now() - startedRef.current) / 1000;
     stopAll();
-    const result = calibrate(ctx.localId || 'unidentified', baselineRef.current, { fps: 30 });
+    const result = calibrate(ctx.localId || 'unidentified', baselineRef.current, {
+      elapsedSeconds,
+    });
     if ('error' in result) {
       setError(result.error);
       setStatus('Baseline rejected.');
@@ -149,19 +207,24 @@ export const FacialCapture = ({ onEvidence }: { onEvidence?: (e: AiEvidence) => 
   };
 
   const beginObservation = async () => {
+    if (starting || mode !== 'idle') return;
     setError(null);
+    setStarting(true);
     try {
       serviceRef.current ??= new FaceLandmarkerService();
       await serviceRef.current.load();
       await startStream(true);
       framesRef.current = [];
       startedRef.current = performance.now();
+      lastDetectRef.current = 0;
       setMode('observing');
       setStatus('Coding facial actions.');
       loop('window');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setMode('idle');
+    } finally {
+      setStarting(false);
     }
   };
 
@@ -269,11 +332,24 @@ export const FacialCapture = ({ onEvidence }: { onEvidence?: (e: AiEvidence) => 
         <div className="flex flex-wrap gap-2">
           {mode === 'idle' && (
             <>
-              <Button onClick={beginCalibration} variant="ghost" disabled={!captureAvailable}>
-                <Gauge className="w-4 h-4" /> {calibration ? 'Re-record baseline' : 'Record baseline'}
+              <Button
+                onClick={beginCalibration}
+                variant="ghost"
+                disabled={!captureAvailable || starting}
+              >
+                <Gauge className="w-4 h-4" />
+                {starting
+                  ? 'Starting...'
+                  : calibration
+                    ? 'Re-record baseline'
+                    : 'Record baseline'}
               </Button>
-              <Button onClick={beginObservation} disabled={!calibration || !captureAvailable}>
-                <Camera className="w-4 h-4" /> Start observation window
+              <Button
+                onClick={beginObservation}
+                disabled={!calibration || !captureAvailable || starting}
+              >
+                <Camera className="w-4 h-4" />
+                {starting ? 'Starting...' : 'Start observation window'}
               </Button>
             </>
           )}
