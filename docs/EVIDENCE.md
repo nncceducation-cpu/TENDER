@@ -337,13 +337,36 @@ face, thresholds sit too high, and actions go uncoded. The failure is toward
 under-reporting pain, which is stated wherever a self-referenced reading appears
 and travels with it into the export.
 
-With no reference at all, nothing is coded. The raw activations are shown, ordered
-within each face, and no action is called present or absent. An absolute threshold
-is the obvious alternative and it is not defensible: the blendshape head was
-trained overwhelmingly on adult faces and no neonatal cut-offs have been published
-for it, so any number would be invented. For a single photograph the cloud
-assessor is the better instrument, because COMFORT facial tension is a judgement
-about one moment and does not require a per-infant baseline.
+With no reference at all, a single photograph is read from geometry rather than
+from blendshape activations, and the distinction is the whole argument.
+
+A blendshape score is the output of a classifier head trained overwhelmingly on
+adult faces. An absolute cut-off on it makes a claim about how that model behaves
+on a 27-week infant, and nothing supports such a claim. Distances between
+landmarks are different in kind: they measure the photograph. Expressed as a
+fraction of interocular distance, the standard anthropometric normaliser and the
+measure on a face least changed by expression, they remove camera distance and
+most of face size. What remains varies between individuals, but far less than a
+raw blendshape score does.
+
+Three regions are read, and they are not equally trustworthy. Eye aperture and
+lip separation are close to unambiguous, since an aperture near zero is a closed
+or squeezed eye whoever the face belongs to. Brow-to-eye distance is the weakest,
+because resting brow height genuinely differs between infants, so it carries about
+a third of the weight of the other two and is labelled weak on screen.
+
+The result is a level on the COMFORT behaviour facial tension scale, the same item
+COMFORTneo uses. It never reaches level 1, because total relaxation is an absence
+and a single frame cannot separate a relaxed face from a blink. It is uncalibrated,
+not comparable between infants or sessions, and never fills a scale item on its
+own. The reference bands live in one exported constant, `RELAXED_REFERENCE`, so
+they can be argued with in one place; Study 2 of the validation plan is where they
+would be tested.
+
+The cloud assessor remains the stronger instrument for a single photograph, since
+COMFORT facial tension is a judgement about one moment and a multimodal model
+brings context that geometry does not. The geometric reading is what is available
+when no key is configured, which on the public deployment is always.
 
 ### Where the model abstains
 

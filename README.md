@@ -87,8 +87,11 @@ infant, a baseline already recorded this session, the median of the images being
 scored, or none at all. The last two exist because a calm photograph often does
 not, and refusing to look is not the only honest response to that. Referencing
 material against itself under-reports if the infant was distressed throughout,
-and says so. With no reference the tool describes rather than scores: raw
-activations, ordered within each face, nothing called present or absent. A single
+and says so. With no reference at all, a single photograph is read from facial
+geometry normalised to interocular distance, which measures the image rather than
+classifying it, and produces a COMFORT facial tension level of 2 to 5 with the
+raw activations alongside. Individual NFCS actions are still not called present
+or absent, since that does need a per-infant baseline. A single
 photograph cannot produce an epoch score in any mode, because NFCS sums
 per-second coding across a window; a set sampled from one period can, since the
 proportion showing each action is the quantity PIPP-R bands.

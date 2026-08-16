@@ -326,6 +326,7 @@ describe('still image coding', () => {
     quality,
     problems: [],
     faceFound: true,
+    assessment: null,
   });
 
   it('refuses to calibrate from too few images', async () => {
@@ -338,7 +339,15 @@ describe('still image coding', () => {
   it('says when no face was found rather than blaming the count', async () => {
     const { calibrateFromStills } = await import('../stillAnalysis');
     const r = calibrateFromStills('BED-1', [
-      { index: 0, name: 'a', activations: {} as never, quality: 0, problems: [], faceFound: false },
+      {
+        index: 0,
+        name: 'a',
+        activations: {} as never,
+        quality: 0,
+        problems: [],
+        faceFound: false,
+        assessment: null,
+      },
     ]);
     expect('error' in r).toBe(true);
     if ('error' in r) expect(r.error).toMatch(/No face was detected in any/);
@@ -494,12 +503,13 @@ describe('describing stills with no reference at all', () => {
       quality: 0.9,
       problems: [],
       faceFound: true,
+      assessment: null,
     };
     const [d] = describeStills([frame]);
     expect(d.ranked[0].action).toBe('brow_bulge');
     expect(d.ranked[0].activation).toBeCloseTo(0.8, 6);
     // Nothing in the output claims presence or absence.
-    expect(Object.keys(d)).toEqual(['frame', 'ranked']);
+    expect(Object.keys(d).sort()).toEqual(['assessment', 'frame', 'ranked']);
   });
 
   it('omits actions it cannot measure', async () => {
@@ -512,6 +522,7 @@ describe('describing stills with no reference at all', () => {
         quality: 0.9,
         problems: [],
         faceFound: true,
+        assessment: null,
       },
     ]);
     expect(d.ranked.some((r) => r.action === 'taut_tongue')).toBe(false);
@@ -521,8 +532,126 @@ describe('describing stills with no reference at all', () => {
     const { describeStills } = await import('../stillAnalysis');
     expect(
       describeStills([
-        { index: 0, name: 'a', activations: {} as never, quality: 0, problems: [], faceFound: false },
+        {
+        index: 0,
+        name: 'a',
+        activations: {} as never,
+        quality: 0,
+        problems: [],
+        faceFound: false,
+        assessment: null,
+      },
       ]),
     ).toHaveLength(0);
+  });
+});
+
+describe('reading a single image from geometry', () => {
+  const measures = (over: Partial<Record<string, number>> = {}) => ({
+    eyeAperture: 0.12,
+    mouthOpening: 0.01,
+    mouthWidth: 0.75,
+    browToEye: 0.3,
+    faceProportion: 1.6,
+    ...over,
+  });
+
+  it('reads a relaxed face as level 2, never level 1', async () => {
+    const { readSingleImage } = await import('../faceGeometry');
+    const r = readSingleImage(measures());
+    expect(r.facialTension).toBe(2);
+    expect(r.caveats.join(' ')).toMatch(/Level 1, total relaxation, is never produced/);
+  });
+
+  it('never produces level 1 for any input', async () => {
+    const { readSingleImage } = await import('../faceGeometry');
+    for (let eye = 0; eye <= 0.3; eye += 0.01) {
+      for (let mouth = 0; mouth <= 0.5; mouth += 0.05) {
+        const r = readSingleImage(measures({ eyeAperture: eye, mouthOpening: mouth }));
+        expect(r.facialTension).toBeGreaterThanOrEqual(2);
+        expect(r.facialTension).toBeLessThanOrEqual(5);
+      }
+    }
+  });
+
+  it('escalates as more regions show tension', async () => {
+    const { readSingleImage } = await import('../faceGeometry');
+    const calm = readSingleImage(measures());
+    const oneRegion = readSingleImage(measures({ eyeAperture: 0.03 }));
+    const everything = readSingleImage(
+      measures({ eyeAperture: 0.005, mouthOpening: 0.4, browToEye: 0.12 }),
+    );
+    expect(oneRegion.facialTension).toBeGreaterThan(calm.facialTension);
+    expect(everything.facialTension).toBeGreaterThan(oneRegion.facialTension);
+    expect(everything.facialTension).toBe(5);
+  });
+
+  it('weights the brow least, since resting brow height varies between infants', async () => {
+    const { readSingleImage } = await import('../faceGeometry');
+    const brow = readSingleImage(measures({ browToEye: 0.12 }));
+    const eyes = readSingleImage(measures({ eyeAperture: 0.02 }));
+    expect(brow.regions.find((r) => r.region === 'Brow')!.reliability).toBe('weak');
+    expect(eyes.overallTension).toBeGreaterThan(brow.overallTension);
+  });
+
+  it('always states that it is uncalibrated and not comparable', async () => {
+    const { readSingleImage } = await import('../faceGeometry');
+    const c = readSingleImage(measures()).caveats.join(' ');
+    expect(c).toMatch(/Uncalibrated/);
+    expect(c).toMatch(/Not comparable between infants/);
+    expect(c).toMatch(/Never auto-filled/);
+  });
+
+  it('warns that closed eyes and sleep are indistinguishable in one frame', async () => {
+    const { readSingleImage } = await import('../faceGeometry');
+    const r = readSingleImage(measures({ eyeAperture: 0.005 }));
+    expect(r.caveats.join(' ')).toMatch(/what sleep looks like/);
+  });
+
+  it('warns when face proportions suggest the head is turned', async () => {
+    const { readSingleImage } = await import('../faceGeometry');
+    expect(readSingleImage(measures({ faceProportion: 0.7 })).caveats.join(' ')).toMatch(
+      /head may be turned/,
+    );
+  });
+
+  it('refuses to measure a landmark set that is too small', async () => {
+    const { measureGeometry } = await import('../faceGeometry');
+    expect(measureGeometry({ faceLandmarks: [[]] } as never, 640, 480)).toBeNull();
+    expect(measureGeometry({ faceLandmarks: [] } as never, 640, 480)).toBeNull();
+  });
+
+  it('normalises away face size, so distance from the camera does not change the level', async () => {
+    const { measureGeometry, readSingleImage } = await import('../faceGeometry');
+    const make = (scale: number) => ({
+      faceLandmarks: [
+        Array.from({ length: 468 }, (_, i) => {
+          const pts: Record<number, [number, number]> = {
+            33: [0.5 - 0.1 * scale, 0.5],
+            263: [0.5 + 0.1 * scale, 0.5],
+            159: [0.4, 0.5 - 0.01 * scale],
+            145: [0.4, 0.5 + 0.01 * scale],
+            386: [0.6, 0.5 - 0.01 * scale],
+            374: [0.6, 0.5 + 0.01 * scale],
+            105: [0.4, 0.5 - 0.06 * scale],
+            334: [0.6, 0.5 - 0.06 * scale],
+            13: [0.5, 0.7],
+            14: [0.5, 0.7 + 0.002 * scale],
+            61: [0.5 - 0.08 * scale, 0.7],
+            291: [0.5 + 0.08 * scale, 0.7],
+            10: [0.5, 0.5 - 0.16 * scale],
+            152: [0.5, 0.5 + 0.16 * scale],
+          };
+          const [x, y] = pts[i] ?? [0.5, 0.5];
+          return { x, y, z: 0 };
+        }),
+      ],
+    });
+    const near = measureGeometry(make(1.5) as never, 800, 800);
+    const far = measureGeometry(make(0.6) as never, 800, 800);
+    expect(near).not.toBeNull();
+    expect(far).not.toBeNull();
+    expect(near!.eyeAperture).toBeCloseTo(far!.eyeAperture, 6);
+    expect(readSingleImage(near!).facialTension).toBe(readSingleImage(far!).facialTension);
   });
 });

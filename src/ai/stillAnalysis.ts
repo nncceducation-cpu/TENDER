@@ -2,6 +2,7 @@ import type { FaceLandmarkerService } from './faceLandmarker';
 import { assessFrameQuality } from './faceLandmarker';
 import { calibrate, rawActivations, selfReference, summariseWindow } from './nfcsFeatures';
 import type { InfantCalibration } from './nfcsFeatures';
+import { measureGeometry, readSingleImage, type SingleImageAssessment } from './faceGeometry';
 import type { NfcsAction, NfcsFrame, NfcsWindowSummary } from '../domain/types';
 
 /**
@@ -32,6 +33,11 @@ export interface StillFrame {
   quality: number;
   problems: string[];
   faceFound: boolean;
+  /**
+   * Geometric reading of this frame, available whether or not a reference exists.
+   * Null when the landmarks were insufficient to measure.
+   */
+  assessment: SingleImageAssessment | null;
 }
 
 /** Minimum settled images needed before thresholds mean anything. */
@@ -67,6 +73,13 @@ export const analyseStills = async (
       quality: faceFound ? q.quality : 0,
       problems: q.problems,
       faceFound,
+      assessment:
+        faceFound && result
+          ? (() => {
+              const m = measureGeometry(result, img.naturalWidth, img.naturalHeight);
+              return m ? readSingleImage(m) : null;
+            })()
+          : null,
     });
 
     onProgress?.((i + 1) / images.length);
@@ -140,6 +153,8 @@ export interface StillDescription {
   frame: StillFrame;
   /** Actions ordered by raw activation, strongest first. Not a coding. */
   ranked: { action: NfcsAction; activation: number }[];
+  /** Geometric reading on the COMFORT facial tension scale. Uncalibrated. */
+  assessment: SingleImageAssessment | null;
 }
 
 /**
@@ -150,18 +165,24 @@ export interface StillDescription {
  * clinician can see which actions the extractor is responding to and judge for
  * themselves whether that matches what they see.
  *
- * There is no honest way to threshold these. The blendshape model was trained
- * overwhelmingly on adult faces, so an absolute cut-off calibrated on adults says
- * nothing dependable about a 27-week infant, and no neonatal cut-offs have been
- * published for it. Inventing one and printing it beside a dose calculator is
- * exactly the failure this application was rebuilt to remove. So the numbers are
- * shown, the ordering is shown, and no action is called present or absent.
+ * It now produces a level on the COMFORT facial tension scale as well as the raw
+ * numbers, and the distinction that makes that defensible is what gets
+ * thresholded. Blendshape activations are outputs of a head trained
+ * overwhelmingly on adult faces, so an absolute cut-off on them says little about
+ * a 27-week infant; they are reported, never thresholded, without a per-infant
+ * baseline. The level comes instead from geometry normalised to interocular
+ * distance, which measures the photograph rather than classifying it. See
+ * faceGeometry.ts.
+ *
+ * The level is uncalibrated, is not comparable between infants, never reaches 1,
+ * and is never filled into a scale on its own.
  */
 export const describeStills = (frames: StillFrame[]): StillDescription[] =>
   frames
     .filter((f) => f.faceFound)
     .map((frame) => ({
       frame,
+      assessment: frame.assessment,
       ranked: (Object.keys(frame.activations) as NfcsAction[])
         .filter((a) => Number.isFinite(frame.activations[a]))
         .map((action) => ({ action, activation: frame.activations[action] }))

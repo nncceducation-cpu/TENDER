@@ -187,7 +187,14 @@ export const AssessScreen = () => {
         <>
           <FacialCapture />
           <ClipAnalysis />
-          <StillAnalysis />
+          <StillAnalysis
+            onProposeTension={
+              items.some((i) => i.id === 'facial_tension')
+                ? (level) =>
+                    setValues((v) => ({ ...v, facial_tension: { value: level, fromAi: true } }))
+                : undefined
+            }
+          />
           <VisionAssist
             onFacialTension={
               items.some((i) => i.id === 'facial_tension')

@@ -86,7 +86,11 @@ const DropZone = ({
  * infant establish the resting face, or an existing calibration from a clip or a
  * live session is reused.
  */
-export const StillAnalysis = () => {
+export const StillAnalysis = ({
+  onProposeTension,
+}: {
+  onProposeTension?: (level: number) => void;
+}) => {
   const serviceRef = useRef<FaceLandmarkerService | null>(null);
 
   const [baselineImages, setBaselineImages] = useState<Picked[]>([]);
@@ -302,14 +306,14 @@ export const StillAnalysis = () => {
         )}
 
         {mode === 'describe' && (
-          <Callout tone="info" title="Nothing will be scored">
-            There is no honest way to threshold a single face without a reference. The
-            blendshape model was trained overwhelmingly on adult faces, and no neonatal
-            cut-offs have been published for it, so an absolute threshold would be
-            invented. You will get the raw activations and their ordering within each
-            face, which is a reading aid, not a measurement. For a single photograph the
-            cloud panel below is the better tool: the COMFORT facial tension item is a
-            judgement about one moment and does not need a per-infant baseline.
+          <Callout tone="warn" title="Uncalibrated reading">
+            You will get a level on the COMFORT facial tension scale, 2 to 5, derived
+            from facial geometry normalised to interocular distance rather than to this
+            infant's own resting face. That measures the photograph rather than
+            classifying it, which is why it is offered where thresholding a blendshape
+            score is not. It is uncalibrated, not comparable between infants or
+            sessions, never reaches level 1, and is never filled into a scale on its
+            own. The raw activations are shown alongside it.
           </Callout>
         )}
 
@@ -409,19 +413,86 @@ export const StillAnalysis = () => {
 
         {description && (
           <div className="space-y-3 pt-2 border-t border-slate-200">
-            <Callout tone="info" title="Descriptive only">
-              No action has been called present or absent, because nothing established
-              what this infant's resting face looks like. The values below are the raw
-              activations behind the coding, strongest first within each face.
+            <Callout tone="warn" title="Uncalibrated: read it, do not trend it">
+              No settled reference for this infant was supplied, so each level below
+              comes from facial geometry rather than from this infant's own resting
+              face. Individual NFCS actions are still not called present or absent,
+              because that does require a per-infant baseline.
             </Callout>
             {description.map((d) => (
-              <div key={d.frame.name + d.frame.index} className="border-t border-slate-100 pt-2">
+              <div key={d.frame.name + d.frame.index} className="border-t border-slate-100 pt-3">
                 <p className="text-sm font-medium text-slate-800">
                   {d.frame.name}
                   <span className="ml-2 text-xs font-normal text-slate-500">
                     quality {d.frame.quality.toFixed(2)}
                   </span>
                 </p>
+
+                {d.assessment ? (
+                  <div className="mt-2 rounded-lg border border-slate-200 p-3 space-y-2">
+                    <div className="flex items-baseline gap-3 flex-wrap">
+                      <span className="text-[11px] uppercase tracking-wide font-semibold text-slate-500">
+                        COMFORT facial tension
+                      </span>
+                      <span className="text-2xl font-bold text-slate-800">
+                        Level {d.assessment.facialTension}
+                      </span>
+                      <span className="text-sm text-slate-600">{d.assessment.anchor}</span>
+                    </div>
+
+                    <table className="w-full text-sm">
+                      <tbody>
+                        {d.assessment.regions.map((r) => (
+                          <tr key={r.region} className="align-top">
+                            <td className="py-1 text-slate-700 w-20">{r.region}</td>
+                            <td className="py-1 w-32">
+                              <span className="inline-block h-1.5 rounded bg-amber-500 align-middle"
+                                style={{ width: `${Math.max(2, r.tension * 100)}%` }} />
+                            </td>
+                            <td className="py-1">
+                              <span
+                                className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
+                                  r.reliability === 'good'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : r.reliability === 'moderate'
+                                      ? 'bg-slate-100 text-slate-600'
+                                      : 'bg-amber-100 text-amber-800'
+                                }`}
+                              >
+                                {r.reliability}
+                              </span>
+                              <span className="block text-xs text-slate-600 mt-0.5">{r.reading}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    <ul className="text-xs text-slate-600 list-disc list-inside space-y-0.5">
+                      {d.assessment.caveats.map((c) => (
+                        <li key={c}>{c}</li>
+                      ))}
+                    </ul>
+
+                    {onProposeTension && (
+                      <Button
+                        variant="ghost"
+                        onClick={() => onProposeTension(d.assessment!.facialTension)}
+                      >
+                        Propose level {d.assessment.facialTension} for COMFORTneo facial tension
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-1 text-sm text-slate-500">
+                    Landmarks were insufficient to measure this face geometrically.
+                  </p>
+                )}
+
+                <details className="mt-2 text-sm">
+                  <summary className="cursor-pointer text-slate-600 text-xs">
+                    Raw activations behind the coding
+                  </summary>
                 <table className="w-full text-sm mt-1">
                   <tbody>
                     {d.ranked.map(({ action, activation }) => (
@@ -440,6 +511,7 @@ export const StillAnalysis = () => {
                     ))}
                   </tbody>
                 </table>
+                </details>
               </div>
             ))}
           </div>
