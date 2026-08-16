@@ -17,7 +17,9 @@
     "build:standalone": "vite build --config vite.standalone.config.ts"
   },
   "dependencies": {
+    "@google/genai": "^2.17.1",
     "@mediapipe/tasks-vision": "^1.0.1",
+    "jspdf": "^4.2.1",
     "lucide-react": "^1.31.0",
     "onnxruntime-web": "^1.27.0",
     "react": "^19.2.8",

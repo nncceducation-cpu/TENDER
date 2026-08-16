@@ -26,3 +26,7 @@ dist-ssr
 # Model assets are staged by scripts/fetch-models.mjs, not committed.
 public/models/
 dist-standalone/
+
+# Local secrets
+.env.local
+.env*.local

@@ -22,11 +22,16 @@ export interface ProtocolVersion {
 
 export const PROTOCOL_VERSION: ProtocolVersion = {
   id: 'ACH-NICU-POSTOP-OPIOID',
-  version: '2.0.0-draft',
+  version: '2.1.0-draft',
   effectiveDate: '2025-02-01',
   owner: 'Section of Newborn Critical Care, Alberta Children\'s Hospital',
   changelog: [
     { version: '1.0.0', date: '2025-02-01', note: 'Original protocol as encoded in PainWise NICU, PDSA cycle 2.' },
+    {
+      version: '2.1.0-draft',
+      date: '2026-08-16',
+      note: 'Merged DeepRelief AI. Cloud vision assessor added as an optional, local-only second opinion that scores the COMFORT facial tension item and fails closed. PDF session report added. See docs/AUDIT-deeprelief.md.',
+    },
     {
       version: '2.0.0-draft',
       date: new Date().toISOString().slice(0, 10),

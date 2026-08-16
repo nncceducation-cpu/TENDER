@@ -20,6 +20,8 @@ export default defineConfig({
       // The ONNX slot is not reachable in a standalone file. Stub it so the
       // 27 MB runtime is not inlined into an HTML document.
       'onnxruntime-web': resolve(__dirname, 'src/ai/onnxStub.ts'),
+      // The cloud assessor is disabled in this build, so the SDK is dead weight.
+      '@google/genai': resolve(__dirname, 'src/ai/genaiStub.ts'),
     },
   },
   build: {

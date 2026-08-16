@@ -226,6 +226,42 @@ consistently.
 > Comparative analysis of artificial intelligence and expert assessments in
 > detecting neonatal procedural pain. *Sci Rep.* 2024;14. doi:10.1038/s41598-024-71278-6
 
+### PFECIC, and why it is not a neonatal framework
+
+The predecessor tool DeepRelief built its prompt around the **PFECIC** dataset
+(Pain Facial Expression of Critically Ill Children), describing itself as a
+neonatal assistant "enhanced by the PFECIC framework".
+
+The dataset is sound work. It comprises 53 critically ill Chinese children aged
+**1 to 18 years**, collected in the PICU and CICU of Children's Hospital of Fudan
+University between December 2022 and January 2023, across seven painful
+procedures: nebulisation suction, tracheal suction, surgical debridement or
+dressing change, peripheral venous catheterisation, arterial catheterisation,
+intramuscular or subcutaneous injection, and urinary catheterisation. It contains
+119 videos and 6,951 annotated images, triple-annotated by six nurses from the
+hospital pain management team. A Swin Transformer trained on it reached 88.3%
+accuracy, 88.3% precision, 88.7% recall and an F1 of 88.5%.
+
+It contains no neonates, and the paper says so.
+
+Two things follow. The 88.3% figure has no bearing on a neonatal tool, and it has
+no bearing at all on a general-purpose language model that was not trained on the
+dataset. And the labelling instrument PFECIC used is not novel: it is the
+five-level facial tension item of the **COMFORT behaviour scale**, which TENDER
+already implements with the same anchors as `facial_tension` in COMFORTneo,
+validated in neonates from 24 to 42 weeks.
+
+The useful thing to take from PFECIC is therefore not its framework but its
+finding about occlusion. Its exclusion criterion was more than one third of the
+face covered, and it retained children partially obscured by oxygen tubes,
+nasogastric tubes and endotracheal tubes, noting this as a limitation. That is the
+ordinary condition of a NICU face, and it is why TENDER's on-device coder gates on
+face fraction and head pose, and why the cloud assessor is asked to report
+occlusion and to abstain past roughly a third.
+
+> Construction and validation of a pain facial expressions dataset for critically
+> ill children. *Sci Rep.* 2025;15. doi:10.1038/s41598-025-02247-w
+
 ### Physiological indices
 
 The NIPE monitor (Newborn Infant Parasympathetic Evaluation) derives an index from
@@ -323,3 +359,4 @@ acquisition system.
 - [NIPE monitor systematic review — J Pediatr Surg](https://www.sciencedirect.com/science/article/pii/S0022346823007406)
 - [EDIN scale, prolonged pain in preterm infants](https://www.e-cep.org/journal/view.php?number=20125553464)
 - [NIPS and N-PASS scoring tables](https://healthcare.ascension.org/-/media/project/ascension/healthcare/markets/wisconsin/ministry-health-care/pain-assessment--tools.pdf)
+- [PFECIC: pain facial expressions dataset for critically ill children — Sci Rep 2025](https://www.nature.com/articles/s41598-025-02247-w)

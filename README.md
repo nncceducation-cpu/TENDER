@@ -29,6 +29,10 @@ npm run fetch:models     # stages MediaPipe WASM and the pinned face landmarker
 npm run dev
 ```
 
+To enable the optional cloud second opinion, copy `.env.example` to `.env.local`
+and add a Gemini key. Without one the rest of the application is unaffected. The
+key is never committed and never reaches the deployed site.
+
 Verify everything:
 
 ```bash
@@ -68,8 +72,14 @@ number of steps to zero, and whether WAT-1 is indicated.
 and the cross-tolerance-reduced targets, the ratios used, and a warning when the
 derived breakthrough dose conflicts with the protocol's own bolus rule.
 
-**Trend.** Scores over the session, the hash-chained audit log, and a de-identified
-JSON export.
+**Cloud second opinion.** Optional, off by default, and the only part of TENDER
+that transmits anything. Send a single still to Gemini and it scores the COMFORT
+behaviour facial tension item and codes the NFCS actions. Enabled only when you run
+locally with your own key in `.env.local`, never on the deployed site. It fails
+closed: a network error shows nothing rather than showing no pain.
+
+**Trend.** Scores over the session, the hash-chained audit log, a PDF session
+report, and a de-identified JSON export.
 
 **Protocol.** The version in force, the changelog, the full instrument library with
 caveats and references, and the open questions that need the protocol owner's
@@ -169,7 +179,8 @@ signal from a signal acquisition system. Treat it as investigational.
 
 ## Documentation
 
-- [`docs/AUDIT-v1.md`](docs/AUDIT-v1.md) — fifteen findings from the previous version, ranked by how directly they could reach a patient
+- [`docs/AUDIT-v1.md`](docs/AUDIT-v1.md) — fifteen findings from PainWise NICU, ranked by how directly they could reach a patient
+- [`docs/AUDIT-deeprelief.md`](docs/AUDIT-deeprelief.md) — review of DeepRelief AI, what was carried into TENDER and what was not
 - [`docs/EVIDENCE.md`](docs/EVIDENCE.md) — the literature behind every design decision
 - [`docs/PRIVACY-AND-REGULATORY.md`](docs/PRIVACY-AND-REGULATORY.md) — HIA, FDA CDS criteria, Health Canada, security posture
 - [`docs/VALIDATION-PLAN.md`](docs/VALIDATION-PLAN.md) — how to actually test whether the facial coding works at ACH

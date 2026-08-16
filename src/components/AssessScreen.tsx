@@ -7,6 +7,7 @@ import { recommendScales } from '../engine/scaleSelector';
 import { applicableItems, scoreAssessment, IncompleteAssessmentError } from '../engine/scoring';
 import { decideEscalation } from '../engine/protocolEngine';
 import { FacialCapture } from './FacialCapture';
+import { VisionAssist } from './VisionAssist';
 import type { PainConstruct, ScaleId, ScoredItem } from '../domain/types';
 
 const CONSTRUCTS: { id: PainConstruct; label: string; blurb: string }[] = [
@@ -166,7 +167,17 @@ export const AssessScreen = () => {
       ) : null}
 
       {(scale.items.some((i) => i.channel === 'facial') || scale.id === 'NFCS_P3') && (
-        <FacialCapture />
+        <>
+          <FacialCapture />
+          <VisionAssist
+            onFacialTension={
+              items.some((i) => i.id === 'facial_tension')
+                ? (level) =>
+                    setValues((v) => ({ ...v, facial_tension: { value: level, fromAi: true } }))
+                : undefined
+            }
+          />
+        </>
       )}
 
       <Card title={`${scale.name} scoring`} icon={<Activity className="w-5 h-5 text-sky-700" />}>

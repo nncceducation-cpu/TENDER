@@ -1,8 +1,9 @@
-import { Download, FileWarning, LineChart, ShieldCheck } from 'lucide-react';
+import { Download, FileText, FileWarning, LineChart, ShieldCheck } from 'lucide-react';
 import { useStore } from '../state/store';
 import { Button, Callout, Card, Stat } from './ui';
 import { PROTOCOL_VERSION, REVIEW_FLAGS } from '../data/protocol/ach';
 import { PAIN_SCALES, WAT_1 } from '../data/scales';
+import { buildSessionReport } from '../state/report';
 
 export const ProtocolScreen = () => (
   <div className="space-y-5">
@@ -99,6 +100,16 @@ export const TrendScreen = () => {
     URL.revokeObjectURL(url);
   };
 
+  const downloadPdf = async () => {
+    const doc = await buildSessionReport({
+      ctx: s.ctx,
+      clinician: s.clinician,
+      assessments,
+      audit: s.audit.all(),
+    });
+    doc.save(`tender-report-${s.ctx.localId || 'unidentified'}-${Date.now()}.pdf`);
+  };
+
   const max = Math.max(1, ...assessments.map((a) => a.total));
 
   return (
@@ -172,9 +183,12 @@ export const TrendScreen = () => {
           ))}
           {s.audit.all().length === 0 && <p className="text-slate-500">Nothing recorded yet.</p>}
         </div>
-        <div className="mt-4">
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button onClick={() => void downloadPdf()}>
+            <FileText className="w-4 h-4" /> Session report (PDF)
+          </Button>
           <Button onClick={download} variant="ghost">
-            <Download className="w-4 h-4" /> Export session
+            <Download className="w-4 h-4" /> Export raw session (JSON)
           </Button>
         </div>
       </Card>
