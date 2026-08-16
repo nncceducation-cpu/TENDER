@@ -5,6 +5,8 @@ import {
   calculateInitialDoses,
   planWeaning,
   decideEscalation,
+  checkWeaningReadiness,
+  countConsecutiveElevated,
 } from '../protocolEngine';
 import type { PatientContext } from '../../domain/types';
 
@@ -156,5 +158,171 @@ describe('escalation', () => {
   it('holds the taper after a recent up-titration', () => {
     const r = decideEscalation({ correctedNpass: 1, wat1: null, opioidExposureDays: 3, recentUptitration: true });
     expect(r.actions[0]).toMatch(/Hold the taper/);
+  });
+});
+
+
+describe('weaning readiness gate', () => {
+  it('will not judge without the hours since theatre', () => {
+    const r = checkWeaningReadiness({
+      hoursSincePostOp: null,
+      correctedNpass: 2,
+      recentUptitration: false,
+    });
+    expect(r.ready).toBe(false);
+    expect(r.recheckInHours).toBeNull();
+    expect(r.blockers.join(' ')).toMatch(/has not been entered/);
+  });
+
+  it('reports a known blocker alongside what is missing', () => {
+    const r = checkWeaningReadiness({
+      hoursSincePostOp: 12,
+      correctedNpass: null,
+      recentUptitration: false,
+    });
+    expect(r.blockers.join(' ')).toMatch(/No N-PASS score/);
+    expect(r.blockers.join(' ')).toMatch(/holds the rate for the first 24 hours/);
+  });
+
+  it('will not judge without a pain score', () => {
+    const r = checkWeaningReadiness({
+      hoursSincePostOp: 30,
+      correctedNpass: null,
+      recentUptitration: false,
+    });
+    expect(r.ready).toBe(false);
+    expect(r.blockers.join(' ')).toMatch(/No N-PASS score/);
+  });
+
+  it('holds the rate inside the first 24 hours even with a settled infant', () => {
+    const r = checkWeaningReadiness({
+      hoursSincePostOp: 18,
+      correctedNpass: 0,
+      recentUptitration: false,
+    });
+    expect(r.ready).toBe(false);
+    expect(r.recheckInHours).toBe(3);
+    expect(r.blockers.join(' ')).toMatch(/holds the rate for the first 24 hours/);
+  });
+
+  it('holds when the infant is past 24 hours but scoring above the lowest band', () => {
+    const r = checkWeaningReadiness({
+      hoursSincePostOp: 26,
+      correctedNpass: 4,
+      recentUptitration: false,
+    });
+    expect(r.ready).toBe(false);
+    expect(r.blockers.join(' ')).toMatch(/Weaning starts only at 3 or below/);
+    // The 24-hour condition passed, and the gate says which one did.
+    expect(r.satisfied.join(' ')).toMatch(/past the 24-hour hold/);
+  });
+
+  it('holds after a recent up-titration even at N-PASS 0 and 48 hours', () => {
+    const r = checkWeaningReadiness({
+      hoursSincePostOp: 48,
+      correctedNpass: 0,
+      recentUptitration: true,
+    });
+    expect(r.ready).toBe(false);
+    expect(r.blockers.join(' ')).toMatch(/up-titration/);
+  });
+
+  it('opens the gate when both conditions hold together', () => {
+    const r = checkWeaningReadiness({
+      hoursSincePostOp: 24,
+      correctedNpass: 3,
+      recentUptitration: false,
+    });
+    expect(r.ready).toBe(true);
+    expect(r.blockers).toHaveLength(0);
+    expect(r.satisfied).toHaveLength(3);
+  });
+});
+
+describe('consecutive elevated scores', () => {
+  it('counts nothing when the last score is in band', () => {
+    expect(
+      countConsecutiveElevated([
+        { scaleId: 'N_PASS', total: 5 },
+        { scaleId: 'N_PASS', total: 2 },
+      ]),
+    ).toBe(0);
+  });
+
+  it('counts the run ending at the most recent score', () => {
+    expect(
+      countConsecutiveElevated([
+        { scaleId: 'N_PASS', total: 1 },
+        { scaleId: 'N_PASS', total: 5 },
+        { scaleId: 'N_PASS', total: 6 },
+      ]),
+    ).toBe(2);
+  });
+
+  it('uses the WAT-1 threshold for WAT-1 rows', () => {
+    // 3 is elevated on WAT-1 and in band on N-PASS.
+    expect(countConsecutiveElevated([{ scaleId: 'WAT_1', total: 3 }])).toBe(1);
+    expect(countConsecutiveElevated([{ scaleId: 'N_PASS', total: 3 }])).toBe(0);
+  });
+});
+
+describe('the two-strike pause rule', () => {
+  it('does not pause the wean on a single mid-band score', () => {
+    const r = decideEscalation({
+      correctedNpass: 5,
+      wat1: null,
+      opioidExposureDays: 3,
+      recentUptitration: false,
+      consecutiveElevated: 1,
+    });
+    expect(r.urgency).toBe('medium');
+    expect(r.actions.join(' ')).not.toMatch(/pause the wean/i);
+    expect(r.drivers.join(' ')).toMatch(/First elevated score/);
+  });
+
+  it('escalates a second consecutive mid-band score to a dose and a pause', () => {
+    const r = decideEscalation({
+      correctedNpass: 5,
+      wat1: null,
+      opioidExposureDays: 3,
+      recentUptitration: false,
+      consecutiveElevated: 2,
+    });
+    expect(r.urgency).toBe('high');
+    expect(r.actions.join(' ')).toMatch(/pause the wean for 12 hours/i);
+  });
+
+  it('gives the rescue dose on the first high-band score but defers the pause', () => {
+    const r = decideEscalation({
+      correctedNpass: 8,
+      wat1: null,
+      opioidExposureDays: 3,
+      recentUptitration: false,
+      consecutiveElevated: 1,
+    });
+    expect(r.urgency).toBe('high');
+    expect(r.actions[0]).toMatch(/Give the PRN opioid dose/);
+    expect(r.actions.join(' ')).toMatch(/Hold today's taper step/);
+  });
+
+  it('pauses for the full window on a second high-band score', () => {
+    const r = decideEscalation({
+      correctedNpass: 8,
+      wat1: null,
+      opioidExposureDays: 3,
+      recentUptitration: false,
+      consecutiveElevated: 2,
+    });
+    expect(r.actions.join(' ')).toMatch(/Pause the wean for 12 to 24 hours/);
+  });
+
+  it('defaults to the first strike when the caller does not track the run', () => {
+    const r = decideEscalation({
+      correctedNpass: 5,
+      wat1: null,
+      opioidExposureDays: 3,
+      recentUptitration: false,
+    });
+    expect(r.urgency).toBe('medium');
   });
 });

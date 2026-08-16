@@ -262,6 +262,74 @@ occlusion and to abstain past roughly a third.
 > Construction and validation of a pain facial expressions dataset for critically
 > ill children. *Sci Rep.* 2025;15. doi:10.1038/s41598-025-02247-w
 
+### What changed in 2025 and 2026
+
+The literature review above was written against work up to 2024. A re-check in
+August 2026 turned up four things worth recording, one of which bears directly on
+whether TENDER's central design choice was the right one.
+
+**The adult field is maturing and has left neonates behind.** A 2025 systematic
+review of AI facial-expression pain assessment covered 25 studies published between
+2015 and 2025 and *explicitly excluded neonatal and paediatric populations*. The
+barriers it names for the adult work are the same ones that block the neonatal
+work: small non-representative samples, no external validation, heterogeneous
+annotation schemes, and reported performance without confidence intervals. A review
+that has to exclude infants to find a coherent body of evidence is a statement
+about how thin the neonatal evidence still is.
+
+**Real-world deployment has been attempted, once, at scale.** An AI neonatal pain
+assessment system was run against 232 newborns during routine blood sampling, with
+NIPS as the reference. It reached 88.79% agreement on the pain score (kappa 0.92),
+95.25% on the pain grade (kappa 0.90), and r = 0.95 against nurse scoring.
+Specificity for severe pain was 87.84%, and the authors attribute the shortfall to
+using face without cry, which is the same finding the USF group reported from the
+other direction when sound outperformed face. The operational detail matters more
+than the numbers: the study required an additional nurse to hold the camera. A tool
+that costs a pair of hands during a procedure has not solved the problem it set out
+to solve, and this is the argument for a fixed cot-side mount rather than a
+handheld device.
+
+**The current state of the art predicts an instrument, not a pain label.** SSS-TT
+(2026, *Applied Intelligence*) combines masked autoencoder pretraining with a
+cascaded vision transformer and a temporal convolutional network, and trains with
+an ordinal regression objective, CORAL loss, aligned to **NIPS levels 0 to 3**. On
+iCOPE, roughly 1000 infants with subject-level splits, it reports 84.6% ± 0.7%
+accuracy and a quadratic weighted kappa of 0.82, which the authors describe as
+comparable to clinician agreement.
+
+This is the finding that matters for TENDER. The strongest current system does not
+invent a pain score; it predicts the ordinal levels of an instrument clinicians
+already use, and it treats the levels as ordered rather than as unrelated classes.
+That is the same position TENDER took for a different reason, which was that a
+number nobody can trace back to a defined observation cannot be argued with at the
+bedside. Two paths, one destination, and the convergence is worth more than either
+argument alone.
+
+The reservation is unchanged. iCOPE is not publicly available, subject-level splits
+inside one dataset are not external validation, and 84.6% on a benchmark says
+nothing about a 26-week infant on CPAP with tape across the nasolabial fold.
+
+**Touchless monitoring is arriving from the vital-signs direction.** A 2025
+*Pediatric Research* commentary on contactless NICU monitoring reports depth-camera
+motion detection at 93.8% sensitivity and 92.2% specificity, while noting that the
+methods are computationally heavy and need far more training across varied NICU
+environments before they generalise. Depth is a channel TENDER does not use and
+could not use from a browser, but it is the likeliest route by which body movement,
+a PIPP-R and N-PASS item that facial landmarks cannot reach, eventually becomes
+automatable.
+
+> Systematic review of artificial intelligence in facial-expression-based pain
+> assessment, 2015 to 2025. Neonatal and paediatric populations excluded by
+> protocol.
+>
+> Real-world evaluation of an AI neonatal pain assessment system during blood
+> sampling, 232 newborns, NIPS reference standard. 2025.
+>
+> SSS-TT: masked-autoencoder pretraining with cascaded ViT and TCN, ordinal
+> regression by CORAL loss on NIPS levels. *Appl Intell.* 2026.
+>
+> Contactless monitoring in the neonatal intensive care unit. *Pediatr Res.* 2025.
+
 ### Physiological indices
 
 The NIPE monitor (Newborn Infant Parasympathetic Evaluation) derives an index from

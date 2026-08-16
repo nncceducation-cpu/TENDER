@@ -5,7 +5,7 @@ import { Button, Callout, Card, Field, Stat, inputClass } from './ui';
 import { SCALES } from '../data/scales';
 import { recommendScales } from '../engine/scaleSelector';
 import { applicableItems, scoreAssessment, IncompleteAssessmentError } from '../engine/scoring';
-import { decideEscalation } from '../engine/protocolEngine';
+import { countConsecutiveElevated, decideEscalation } from '../engine/protocolEngine';
 import { FacialCapture } from './FacialCapture';
 import { VisionAssist } from './VisionAssist';
 import { ClipAnalysis } from './ClipAnalysis';
@@ -105,11 +105,18 @@ export const AssessScreen = () => {
   const latest = s.assessments.at(-1);
   const latestNpass = [...s.assessments].reverse().find((a) => a.scaleId === 'N_PASS');
   const latestWat = [...s.assessments].reverse().find((a) => a.scaleId === 'WAT_1');
+  // Only the scales that drive escalation count towards the run. A COMFORTneo
+  // taken between two N-PASS scores should not break or extend the sequence.
+  const escalationScores = s.assessments
+    .filter((a) => a.scaleId === 'N_PASS' || a.scaleId === 'WAT_1')
+    .map((a) => ({ scaleId: a.scaleId, total: a.total }));
+  const consecutiveElevated = countConsecutiveElevated(escalationScores);
   const escalation = decideEscalation({
     correctedNpass: latestNpass?.total ?? null,
     wat1: latestWat?.total ?? null,
     opioidExposureDays: s.opioidExposureDays,
     recentUptitration: s.recentUptitration,
+    consecutiveElevated: Math.max(1, consecutiveElevated),
   });
 
   return (

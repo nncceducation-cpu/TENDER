@@ -34,7 +34,7 @@ const label = (
   x: number,
   y: number,
   scale: number,
-  align: 'left' | 'right' = 'left',
+  align: 'left' | 'right' | 'center' = 'left',
 ) => {
   ctx.font = `${Math.round(13 * scale)}px system-ui, -apple-system, "Segoe UI", sans-serif`;
   const w = ctx.measureText(text).width;
@@ -43,7 +43,7 @@ const label = (
   const boxW = w + padX * 2;
   const margin = 4 * scale;
 
-  let bx = align === 'right' ? x - boxW : x;
+  let bx = align === 'right' ? x - boxW : align === 'center' ? x - boxW / 2 : x;
   bx = Math.max(margin, Math.min(bx, ctx.canvas.width - boxW - margin));
   const by = Math.max(h + margin, Math.min(y, ctx.canvas.height - margin));
 
@@ -144,13 +144,15 @@ export const FaceOverlay = ({
 
       // Interocular distance: the ruler everything else is measured against.
       line(ctx, p.leftEye.outer, p.rightEye.outer, INK.muted, 2 * scale);
+      // Centred on the ruler and lifted clear of it. Left-anchored at the
+      // midpoint, this box ran across the far eye and into the aperture label.
       label(
         ctx,
         'interocular = 1.00',
         (p.leftEye.outer.x + p.rightEye.outer.x) / 2,
-        p.leftEye.outer.y - 10 * scale,
+        Math.min(p.leftEye.outer.y, p.rightEye.outer.y) - 30 * scale,
         scale,
-        'left',
+        'center',
       );
 
       // Eye aperture, both sides.
@@ -162,7 +164,7 @@ export const FaceOverlay = ({
         ctx,
         `eye aperture ${assessment.measures.eyeAperture.toFixed(3)}`,
         p.rightEye.outer.x + 10 * scale,
-        p.rightEye.top.y + 26 * scale,
+        p.rightEye.bottom.y + 34 * scale,
         scale,
         'left',
       );

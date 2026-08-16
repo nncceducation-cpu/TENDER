@@ -4,10 +4,16 @@ import { Callout, Card, Field, Stat, inputClass } from './ui';
 import {
   calculateInitialDoses,
   checkEligibility,
+  checkWeaningReadiness,
   classifySurgery,
   planWeaning,
 } from '../engine/protocolEngine';
-import { ASSESSMENT_SCHEDULE, POSTOP_DOSING } from '../data/protocol/ach';
+import {
+  ASSESSMENT_SCHEDULE,
+  ORIGINAL_DOSE_DEFINITION,
+  POSTOP_DOSING,
+  WEANING_READINESS,
+} from '../data/protocol/ach';
 
 export const OrdersScreen = () => {
   const s = useStore();
@@ -123,14 +129,70 @@ export const OrdersScreen = () => {
 export const WeanScreen = () => {
   const s = useStore();
   const plan = planWeaning(s.opioidExposureDays, s.currentInfusionMcgPerKgPerHour);
+  const latestNpass = [...s.assessments].reverse().find((a) => a.scaleId === 'N_PASS');
+  const readiness = checkWeaningReadiness({
+    hoursSincePostOp: s.hoursSincePostOp,
+    correctedNpass: latestNpass?.total ?? null,
+    recentUptitration: s.recentUptitration,
+  });
 
   return (
     <div className="space-y-5">
+      <Card title="May weaning start?" icon={<Clock className="w-5 h-5 text-sky-700" />}>
+        <div className="space-y-4">
+          <Field
+            label="Hours since return from theatre"
+            hint={`The pathway holds the rate for the first ${WEANING_READINESS.earliestHoursPostOp} hours`}
+          >
+            <input
+              type="number"
+              step="1"
+              min="0"
+              className={inputClass}
+              value={s.hoursSincePostOp ?? ''}
+              onChange={(e) =>
+                s.setField('hoursSincePostOp', e.target.value === '' ? null : Number(e.target.value))
+              }
+            />
+          </Field>
+
+          <Callout
+            tone={readiness.ready ? 'ok' : readiness.recheckInHours === null ? 'info' : 'warn'}
+            title={readiness.headline}
+          >
+            {readiness.blockers.length > 0 && (
+              <>
+                <p className="text-xs font-semibold uppercase tracking-wide">
+                  What is stopping it
+                </p>
+                <ul className="mt-1 list-disc list-inside space-y-1">
+                  {readiness.blockers.map((b) => (
+                    <li key={b}>{b}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {readiness.satisfied.length > 0 && (
+              <>
+                <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  {readiness.ready ? 'Conditions met' : 'Already satisfied'}
+                </p>
+                <ul className="mt-1 list-disc list-inside space-y-1 text-slate-600">
+                  {readiness.satisfied.map((b) => (
+                    <li key={b}>{b}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </Callout>
+        </div>
+      </Card>
+
       <Card title="Opioid weaning" icon={<Clock className="w-5 h-5 text-sky-700" />}>
         <div className="space-y-5">
           <Field
-            label="Current fentanyl infusion (mcg/kg/hr)"
-            hint="Reductions are calculated from this starting rate"
+            label="Original fentanyl infusion (mcg/kg/hr)"
+            hint={ORIGINAL_DOSE_DEFINITION}
           >
             <input
               type="number"
@@ -146,6 +208,13 @@ export const WeanScreen = () => {
               }
             />
           </Field>
+
+          {!readiness.ready && (
+            <Callout tone="warn" title="Schedule shown for planning only">
+              The readiness gate above is not satisfied, so no step should be taken today. The
+              schedule below is what will apply once it is.
+            </Callout>
+          )}
 
           {plan.offPathway && (
             <Callout tone="danger" title="Beyond the standard pathway">

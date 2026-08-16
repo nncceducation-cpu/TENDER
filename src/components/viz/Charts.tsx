@@ -382,6 +382,31 @@ export const TrendSmallMultiples = ({ series }: { series: TrendSeries[] }) => (
           </div>
 
           {/*
+            The marker colour carries the band, so the band has to be readable
+            without seeing colour. Every status present in this series is named
+            here as a chip with an icon and a word, and the table view carries the
+            interpretation text for each point.
+          */}
+          {(() => {
+            const present: { status: keyof typeof STATUS; text: string }[] = [];
+            for (const p of s.points) {
+              const status = severityStatus(p.severity);
+              const text = p.label ?? status;
+              if (!present.some((x) => x.status === status)) present.push({ status, text });
+            }
+            return present.length > 1 ? (
+              <div className="flex flex-wrap items-center gap-2 mt-2 pl-10">
+                <span className="text-[11px]" style={{ color: INK.muted }}>
+                  markers:
+                </span>
+                {present.map((x) => (
+                  <StatusChip key={x.status} status={x.status} text={x.text} />
+                ))}
+              </div>
+            ) : null;
+          })()}
+
+          {/*
             Thresholds are named below the plot rather than beside their lines.
             In the plot they sat exactly where a score of that value sits, so a
             label and the data point it described occupied the same pixels.

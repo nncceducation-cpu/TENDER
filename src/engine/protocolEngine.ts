@@ -3,7 +3,9 @@ import {
   ELIGIBILITY,
   ESCALATION,
   MINOR_SURGERIES,
+  ORIGINAL_DOSE_DEFINITION,
   POSTOP_DOSING,
+  WEANING_READINESS,
   WEAN_RULES,
   type WeanRule,
 } from '../data/protocol/ach';
@@ -172,6 +174,105 @@ export interface WeaningPlan {
   notes: string[];
 }
 
+export interface WeaningReadiness {
+  ready: boolean;
+  /** True when the answer is "not yet, ask again", rather than "never". */
+  recheck: boolean;
+  recheckInHours: number | null;
+  blockers: string[];
+  satisfied: string[];
+  headline: string;
+}
+
+/**
+ * The gate the pathway puts in front of the first taper step.
+ *
+ * The 24-hour mark is not a start signal. It is the earliest moment the question
+ * can be asked, and the question has two parts: is the infant comfortable on the
+ * current rate, and has the rate been left alone. Fail either and the pathway
+ * loops back to three-hourly scoring rather than proceeding.
+ *
+ * `hoursSincePostOp` is hours since return from theatre. Pass null when it has not
+ * been entered; the gate then reports what it cannot judge instead of assuming.
+ */
+export const checkWeaningReadiness = (params: {
+  hoursSincePostOp: number | null;
+  correctedNpass: number | null;
+  recentUptitration: boolean;
+}): WeaningReadiness => {
+  const { hoursSincePostOp, correctedNpass, recentUptitration } = params;
+  const blockers: string[] = [];
+  const satisfied: string[] = [];
+  const R = WEANING_READINESS;
+
+  const unknown: string[] = [];
+
+  if (hoursSincePostOp === null || !Number.isFinite(hoursSincePostOp)) {
+    unknown.push('Hours since return from theatre has not been entered.');
+  } else if (hoursSincePostOp < R.earliestHoursPostOp) {
+    blockers.push(
+      `${hoursSincePostOp} hours post-operatively. The pathway holds the rate for the first ${R.earliestHoursPostOp} hours.`,
+    );
+  } else {
+    satisfied.push(`${hoursSincePostOp} hours post-operatively, past the ${R.earliestHoursPostOp}-hour hold.`);
+  }
+
+  if (correctedNpass === null) {
+    unknown.push('No N-PASS score is recorded, so comfort on the current rate cannot be judged.');
+  } else if (correctedNpass > R.maxNpass) {
+    blockers.push(
+      `Corrected N-PASS is ${correctedNpass}. Weaning starts only at ${R.maxNpass} or below.`,
+    );
+  } else {
+    satisfied.push(`Corrected N-PASS is ${correctedNpass}, within the 0 to ${R.maxNpass} band.`);
+  }
+
+  if (recentUptitration) {
+    blockers.push(
+      `An up-titration was recorded within the last ${R.noUptitrationWithinHours} hours. The new rate has not yet been shown to hold.`,
+    );
+  } else {
+    satisfied.push(`No up-titration in the last ${R.noUptitrationWithinHours} hours.`);
+  }
+
+  if (unknown.length > 0) {
+    // Anything already known to block is reported alongside what is missing. An
+    // earlier version returned only the missing items, so an infant 12 hours
+    // post-operatively with no score recorded was told the score was missing and
+    // nothing about the 24-hour hold.
+    return {
+      ready: false,
+      recheck: true,
+      recheckInHours: null,
+      blockers: [...unknown, ...blockers],
+      satisfied,
+      headline: 'Cannot tell yet whether weaning may start',
+    };
+  }
+
+  if (blockers.length > 0) {
+    return {
+      ready: false,
+      recheck: true,
+      recheckInHours: R.recheckIntervalHours,
+      blockers,
+      satisfied,
+      headline: `Do not start weaning. Reassess in ${R.recheckIntervalHours} hours.`,
+    };
+  }
+
+  return {
+    ready: true,
+    recheck: false,
+    recheckInHours: null,
+    blockers: [],
+    satisfied,
+    headline: 'Weaning may start',
+  };
+};
+
+export const ORIGINAL_DOSE_NOTE = ORIGINAL_DOSE_DEFINITION;
+
 export const planWeaning = (
   opioidExposureDays: number,
   currentInfusionMcgPerKgPerHour: number | null,
@@ -227,6 +328,29 @@ export const planWeaning = (
 
 export type Urgency = 'low' | 'medium' | 'high';
 
+/**
+ * Count the run of elevated scores ending at the most recent one.
+ *
+ * Takes scores oldest first, as the session stores them. Returns 0 when the last
+ * score is not elevated, which is the case that resets the count. The pathway
+ * counts scores taken 30 to 60 minutes apart; this function counts scores in
+ * order and does not police the interval, because the timestamps in a session
+ * reflect when the nurse had a hand free rather than the protocol clock.
+ */
+export const countConsecutiveElevated = (
+  scores: { scaleId: string; total: number }[],
+): number => {
+  let n = 0;
+  for (let i = scores.length - 1; i >= 0; i -= 1) {
+    const s = scores[i];
+    const threshold =
+      s.scaleId === 'WAT_1' ? ESCALATION.wat1ChecklistThreshold : ESCALATION.npassChecklistThreshold;
+    if (s.total >= threshold) n += 1;
+    else break;
+  }
+  return n;
+};
+
 export interface EscalationResult {
   urgency: Urgency;
   headline: string;
@@ -244,8 +368,19 @@ export const decideEscalation = (params: {
   wat1: number | null;
   opioidExposureDays: number;
   recentUptitration: boolean;
+  /**
+   * How many consecutive scores, including this one, have sat at or above a
+   * threshold. Defaults to 1, which is the first strike.
+   */
+  consecutiveElevated?: number;
 }): EscalationResult => {
-  const { correctedNpass, wat1, opioidExposureDays, recentUptitration } = params;
+  const {
+    correctedNpass,
+    wat1,
+    opioidExposureDays,
+    recentUptitration,
+    consecutiveElevated = 1,
+  } = params;
   const drivers: string[] = [];
   const wat1Applies = opioidExposureDays > ASSESSMENT_SCHEDULE.wat1.triggerExposureDays;
 
@@ -280,31 +415,52 @@ export const decideEscalation = (params: {
     drivers.push('Opioid up-titration in the last 24 hours. Do not step the wean down today.');
   }
 
+  // The pathway pauses the wean on the second consecutive elevated score, not the
+  // first. A single reading buys the checklist and a rescore.
+  const strikesMet = consecutiveElevated >= ESCALATION.consecutiveElevatedBeforePause;
+  const strikeNote = strikesMet
+    ? `This is elevated score ${consecutiveElevated} in a row, so the wean pauses.`
+    : `First elevated score. The wean pauses only if the score ${ASSESSMENT_SCHEDULE.reassessAfterInterventionMinutes[0]} to ${ASSESSMENT_SCHEDULE.reassessAfterInterventionMinutes[1]} minutes from now is still elevated.`;
+
   if (painHigh || withdrawalHigh) {
+    const actions = [
+      'Give the PRN opioid dose per protocol.',
+      'Complete the multisensorial comfort checklist.',
+    ];
+    actions.push(
+      strikesMet
+        ? `Pause the wean for ${ESCALATION.pauseWeanHours[0]} to ${ESCALATION.pauseWeanHours[1]} hours.`
+        : `Hold today's taper step and rescore before deciding on a ${ESCALATION.pauseWeanHours[0]} to ${ESCALATION.pauseWeanHours[1]} hour pause.`,
+    );
+    actions.push(
+      `Rescore N-PASS, and WAT-1 if indicated, ${ASSESSMENT_SCHEDULE.reassessAfterPrnMinutes} minutes after the PRN dose.`,
+    );
     return {
       urgency: 'high',
       headline: 'Rescue dose indicated',
-      actions: [
-        'Give the PRN opioid dose per protocol.',
-        'Complete the multisensorial comfort checklist.',
-        `Pause the wean for ${ESCALATION.pauseWeanHours[0]} to ${ESCALATION.pauseWeanHours[1]} hours.`,
-        `Rescore N-PASS, and WAT-1 if indicated, ${ASSESSMENT_SCHEDULE.reassessAfterPrnMinutes} minutes after the PRN dose.`,
-      ],
-      drivers,
+      actions,
+      drivers: [...drivers, strikeNote],
       reassessInMinutes: ASSESSMENT_SCHEDULE.reassessAfterPrnMinutes,
     };
   }
 
   if (painMid || withdrawalMid) {
+    const actions = [
+      'Complete the multisensorial comfort checklist before any pharmacological step.',
+      `Rescore in ${ASSESSMENT_SCHEDULE.reassessAfterInterventionMinutes[0]} to ${ASSESSMENT_SCHEDULE.reassessAfterInterventionMinutes[1]} minutes.`,
+    ];
+    actions.push(
+      strikesMet
+        ? `Two consecutive elevated scores. Give the PRN dose and pause the wean for ${ESCALATION.pauseWeanHoursMidBand} hours.`
+        : 'If the repeat score stays at or above threshold, escalate to a PRN dose.',
+    );
     return {
-      urgency: 'medium',
-      headline: 'Comfort measures first, then rescore',
-      actions: [
-        'Complete the multisensorial comfort checklist before any pharmacological step.',
-        `Rescore in ${ASSESSMENT_SCHEDULE.reassessAfterInterventionMinutes[0]} to ${ASSESSMENT_SCHEDULE.reassessAfterInterventionMinutes[1]} minutes.`,
-        'If the repeat score stays at or above threshold, escalate to a PRN dose.',
-      ],
-      drivers,
+      urgency: strikesMet ? 'high' : 'medium',
+      headline: strikesMet
+        ? 'Second consecutive elevated score: escalate'
+        : 'Comfort measures first, then rescore',
+      actions,
+      drivers: [...drivers, strikeNote],
       reassessInMinutes: ASSESSMENT_SCHEDULE.reassessAfterInterventionMinutes[0],
     };
   }

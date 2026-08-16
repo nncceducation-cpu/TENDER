@@ -41,6 +41,8 @@ interface AppState {
   opioidExposureDays: number;
   currentInfusionMcgPerKgPerHour: number | null;
   recentUptitration: boolean;
+  /** Hours since return from theatre. Drives the weaning readiness gate. */
+  hoursSincePostOp: number | null;
   postmenstrualAgeWeeks: number;
 
   construct: PainConstruct;
@@ -85,6 +87,7 @@ export const useStore = create<AppState>((set, get) => ({
   opioidExposureDays: 0,
   currentInfusionMcgPerKgPerHour: null,
   recentUptitration: false,
+  hoursSincePostOp: null,
   postmenstrualAgeWeeks: 0,
 
   construct: 'postoperative',
@@ -135,6 +138,7 @@ export const useStore = create<AppState>((set, get) => ({
       opioidExposureDays: 0,
       currentInfusionMcgPerKgPerHour: null,
       recentUptitration: false,
+      hoursSincePostOp: null,
       postmenstrualAgeWeeks: 0,
       assessments: [],
       calibration: null,

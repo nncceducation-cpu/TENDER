@@ -218,6 +218,7 @@ signal from a signal acquisition system. Treat it as investigational.
 
 - [`docs/AUDIT-v1.md`](docs/AUDIT-v1.md) — fifteen findings from PainWise NICU, ranked by how directly they could reach a patient
 - [`docs/AUDIT-deeprelief.md`](docs/AUDIT-deeprelief.md) — review of DeepRelief AI, what was carried into TENDER and what was not
+- [`docs/PATHWAY-CONFORMANCE.md`](docs/PATHWAY-CONFORMANCE.md) — line-by-line check against the 24 Feb 2025 ACH pathway: what matched, what was missing, what the pathway does not say
 - [`docs/EVIDENCE.md`](docs/EVIDENCE.md) — the literature behind every design decision
 - [`docs/PRIVACY-AND-REGULATORY.md`](docs/PRIVACY-AND-REGULATORY.md) — HIA, FDA CDS criteria, Health Canada, security posture
 - [`docs/VALIDATION-PLAN.md`](docs/VALIDATION-PLAN.md) — how to actually test whether the facial coding works at ACH

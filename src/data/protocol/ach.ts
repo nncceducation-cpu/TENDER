@@ -20,13 +20,26 @@ export interface ProtocolVersion {
   changelog: { version: string; date: string; note: string }[];
 }
 
+/**
+ * Source document: "Alberta Children's Hospital NICU — Acute Post-Operative Pain
+ * Management & Opioid Weaning Pathway", 24 February 2025.
+ *
+ * Every value below was checked against that pathway on 16 August 2026. Where the
+ * pathway is silent, the value carried over from the PainWise NICU source and is
+ * marked as such.
+ */
 export const PROTOCOL_VERSION: ProtocolVersion = {
   id: 'ACH-NICU-POSTOP-OPIOID',
-  version: '2.1.0-draft',
-  effectiveDate: '2025-02-01',
+  version: '2.2.0-draft',
+  effectiveDate: '2025-02-24',
   owner: 'Section of Newborn Critical Care, Alberta Children\'s Hospital',
   changelog: [
     { version: '1.0.0', date: '2025-02-01', note: 'Original protocol as encoded in PainWise NICU, PDSA cycle 2.' },
+    {
+      version: '2.2.0-draft',
+      date: '2026-08-16',
+      note: 'Checked line by line against the 24 Feb 2025 pathway document. Added the 24-hour weaning readiness gate and the two-consecutive-elevated-scores rule, both of which the pathway specifies and neither of which was implemented. Effective date corrected to 24 Feb 2025.',
+    },
     {
       version: '2.1.0-draft',
       date: '2026-08-16',
@@ -120,6 +133,27 @@ export const POSTOP_DOSING = {
   /** Stop dexmedetomidine if it was started pre-operatively. */
   stopPreopDexmedetomidine: true,
   noWeaningFirstHours: 24,
+  /** The IV and oral courses together are a five-day scheduled course. */
+  acetaminophenTotalCourseDays: 5,
+} as const;
+
+/**
+ * The gate between the post-operative period and the start of weaning.
+ *
+ * The pathway does not start weaning at 24 hours; it assesses at 24 hours and
+ * starts weaning only when two conditions hold together. Until they do, the
+ * pathway loops back to three-hourly reassessment. The previous implementation
+ * had the 24-hour rule and the up-titration flag but never combined them into
+ * the gate, so an infant scoring 6 at 24 hours would have been shown a weaning
+ * schedule the pathway does not authorise.
+ */
+export const WEANING_READINESS = {
+  earliestHoursPostOp: 24,
+  /** N-PASS must sit in the lowest band. */
+  maxNpass: 3,
+  /** And no opioid up-titration within this window. */
+  noUptitrationWithinHours: 24,
+  recheckIntervalHours: 3,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -159,12 +193,33 @@ export const ESCALATION = {
   npassBolusThreshold: 7,
   wat1ChecklistThreshold: 3,
   wat1BolusThreshold: 6,
+  /**
+   * How many consecutive elevated scores, taken 30 to 60 minutes apart, before
+   * the wean is paused.
+   *
+   * The pathway is explicit about this: the middle and upper bands both act
+   * immediately, then carry the note "elevated scores q 30-60 min x 2" before the
+   * pause step. One elevated score buys a comfort checklist and a rescore; two
+   * buy a pause. The previous implementation paused on the first.
+   */
+  consecutiveElevatedBeforePause: 2,
+  /** The middle band considers a pause; the upper band takes one. */
+  pauseWeanHoursMidBand: 12,
   pauseWeanHours: [12, 24] as [number, number],
 } as const;
 
 // ---------------------------------------------------------------------------
 // Weaning
 // ---------------------------------------------------------------------------
+
+/**
+ * What "original dose" means in the pathway, quoted so it cannot drift.
+ *
+ * Reductions are a percentage of this, not of the current rate, which is why the
+ * infusion reaches zero in a fixed number of steps rather than asymptotically.
+ */
+export const ORIGINAL_DOSE_DEFINITION =
+  'Infusion rate upon return from theatre, once settled on the ward.';
 
 export interface WeanRule {
   label: string;
@@ -310,9 +365,9 @@ export const REVIEW_FLAGS: ReviewFlag[] = [
     severity: 'high',
     where: 'Escalation thresholds',
     finding:
-      'v1 applied escalation thresholds to a raw N-PASS score and capped entry at 10, so the prematurity correction could not be entered. The most preterm infants were the ones most likely to be under-escalated.',
+      'v1 applied escalation thresholds to a raw N-PASS score and capped entry at 10, so the prematurity correction could not be entered. The most preterm infants were the ones most likely to be under-escalated. Re-reading the 24 Feb 2025 pathway makes the ambiguity sharper rather than resolving it: the printed bands are 0 to 3, 4 to 6 and 7 to 10, and they top out at 10, which is exactly the maximum of an uncorrected N-PASS pain score. With the prematurity correction of up to +3 the maximum is 13, a value the pathway has no band for. The document as written does not appear to contemplate the correction at all.',
     question:
-      'Confirm that escalation thresholds of 4 and 7 are intended to apply to the corrected score, as v2 now assumes.',
+      'Do the bands 0-3, 4-6 and 7-10 apply to the raw score or the gestational-age-corrected score? If corrected, what band covers 11 to 13? v2 applies them to the corrected score and treats anything above 10 as the top band.',
   },
   {
     id: 'exposure-day-counter',
