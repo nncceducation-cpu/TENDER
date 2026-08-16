@@ -5,6 +5,7 @@ import { AssessScreen } from './components/AssessScreen';
 import { OrdersScreen, WeanScreen } from './components/OrdersWeanScreens';
 import { ConverterScreen } from './components/ConverterScreen';
 import { ProtocolScreen, TrendScreen } from './components/ProtocolTrendScreens';
+import { PreReleaseBanner } from './components/PreReleaseBanner';
 import { PROTOCOL_VERSION } from './data/protocol/ach';
 
 const NAV: { id: Screen; label: string; icon: typeof Baby }[] = [
@@ -35,6 +36,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col">
+      <PreReleaseBanner />
       <header className="bg-white border-b border-slate-200 sticky top-0 z-20">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2 shrink-0">

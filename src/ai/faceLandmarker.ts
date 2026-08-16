@@ -27,9 +27,16 @@ export interface LandmarkerConfig {
   delegate?: 'GPU' | 'CPU';
 }
 
+/**
+ * Paths are resolved against the deployment base rather than the site root, so
+ * the application works both at localhost:5173/ and at a project sub-path such
+ * as /TENDER/ on GitHub Pages.
+ */
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
 export const DEFAULT_LANDMARKER_CONFIG: LandmarkerConfig = {
-  wasmPath: '/models/mediapipe/wasm',
-  modelAssetPath: '/models/mediapipe/face_landmarker.task',
+  wasmPath: `${base}/models/mediapipe/wasm`,
+  modelAssetPath: `${base}/models/mediapipe/face_landmarker.task`,
   delegate: 'GPU',
 };
 

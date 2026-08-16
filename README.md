@@ -2,9 +2,15 @@
 
 **T**ool for **E**valuating **N**eonatal **D**istress, **E**scalation and **R**esponse.
 
+**Live: https://nncceducation-cpu.github.io/TENDER/**
+
 On-device clinical decision support for neonatal pain assessment, post-operative
 analgesia and opioid weaning. Successor to PainWise NICU, rebuilt around the
 Alberta Children's Hospital NICU protocol.
+
+> **Pre-release.** Not validated at any site, not reviewed by a research ethics
+> board or a regulator, and carrying open questions about opioid dosing. Nothing
+> it produces should be used to treat an infant. See Status and safety below.
 
 Two things distinguish it from the version it replaces. The pain instruments are
 implemented as instruments, with their contextual rules, gestational-age

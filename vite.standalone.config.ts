@@ -14,7 +14,7 @@ import { resolve } from 'node:path';
  */
 export default defineConfig({
   plugins: [react(), tailwindcss(), viteSingleFile()],
-  define: { __TENDER_STANDALONE__: 'true' },
+  define: { __TENDER_PUBLIC_DEMO__: 'true' },
   resolve: {
     alias: {
       // The ONNX slot is not reachable in a standalone file. Stub it so the
