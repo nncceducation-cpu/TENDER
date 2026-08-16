@@ -30,11 +30,16 @@ export interface ProtocolVersion {
  */
 export const PROTOCOL_VERSION: ProtocolVersion = {
   id: 'ACH-NICU-POSTOP-OPIOID',
-  version: '2.2.0-draft',
+  version: '2.3.0-draft',
   effectiveDate: '2025-02-24',
   owner: 'Section of Newborn Critical Care, Alberta Children\'s Hospital',
   changelog: [
     { version: '1.0.0', date: '2025-02-01', note: 'Original protocol as encoded in PainWise NICU, PDSA cycle 2.' },
+    {
+      version: '2.3.0-draft',
+      date: '2026-08-16',
+      note: 'Second pass over the same pathway document. The 10-day opioid exposure limit is an entry criterion, not a running one, so it no longer ejects an infant who accumulated past it on the protocol. The 11-or-more-day taper is inside the pathway, as the flowchart prints it, and is no longer labelled off-pathway. The middle escalation band now says CONSIDER, matching the document, where it previously said give and pause. Both bands now name the return cadence.',
+    },
     {
       version: '2.2.0-draft',
       date: '2026-08-16',
@@ -58,8 +63,19 @@ export const PROTOCOL_VERSION: ProtocolVersion = {
 // ---------------------------------------------------------------------------
 
 export const ELIGIBILITY = {
-  /** Exposure beyond this many days takes the infant off the standard pathway. */
-  maxOpioidExposureDays: 10,
+  /**
+   * Opioid exposure at the moment of post-operative admission, not cumulative
+   * exposure thereafter.
+   *
+   * The pathway's eligibility box reads "neonates admitted to ACH NICU
+   * immediately post-operative AND ... 10 days opioid exposure or less". It is a
+   * screening question asked once, on arrival from theatre. Exposure then
+   * accumulates while the infant is on the protocol, which is why the pathway's
+   * own weaning box prints a rule for 11 or more days. Applying this cap to the
+   * running total would eject an infant from a pathway they entered legitimately
+   * on the day their exposure ticked past ten.
+   */
+  maxOpioidExposureDaysAtEntry: 10,
   /** Absolute exclusions from the standard pathway. */
   exclusions: [
     {
@@ -148,6 +164,7 @@ export const POSTOP_DOSING = {
  * schedule the pathway does not authorise.
  */
 export const WEANING_READINESS = {
+  /** Measured from return to the unit, which is what the pathway's note says. */
   earliestHoursPostOp: 24,
   /** N-PASS must sit in the lowest band. */
   maxNpass: 3,
@@ -219,7 +236,7 @@ export const ESCALATION = {
  * infusion reaches zero in a fixed number of steps rather than asymptotically.
  */
 export const ORIGINAL_DOSE_DEFINITION =
-  'Infusion rate upon return from theatre, once settled on the ward.';
+  'Infusion rate upon return from OR and settled on the ward.';
 
 export interface WeanRule {
   label: string;
@@ -262,12 +279,16 @@ export const WEAN_RULES: WeanRule[] = [
     frequencyLabel: 'q24h',
     wat1Required: true,
     /**
-     * Reachable in v1 only as dead code: eligibility capped exposure at 10 days,
-     * so this branch could never be displayed through the guided flow. It is kept
-     * because the clinical situation is real; the app now shows it explicitly as
-     * off-pathway guidance requiring pain service input.
+     * Within the pathway, contrary to what v2.2 assumed.
+     *
+     * The 24 Feb 2025 flowchart prints "11+ days: decrease opioid dose 10% of
+     * original dose q24h" inside the standard weaning box, downstream of the
+     * eligibility gate. It is reachable for any infant who entered the pathway
+     * eligible and stayed on opioid long enough, which is exactly the infant most
+     * at risk of iatrogenic withdrawal. Marking it off-pathway added a warning
+     * the document does not support and implied the taper needed authorising.
      */
-    withinStandardPathway: false,
+    withinStandardPathway: true,
   },
 ];
 
@@ -368,6 +389,15 @@ export const REVIEW_FLAGS: ReviewFlag[] = [
       'v1 applied escalation thresholds to a raw N-PASS score and capped entry at 10, so the prematurity correction could not be entered. The most preterm infants were the ones most likely to be under-escalated. Re-reading the 24 Feb 2025 pathway makes the ambiguity sharper rather than resolving it: the printed bands are 0 to 3, 4 to 6 and 7 to 10, and they top out at 10, which is exactly the maximum of an uncorrected N-PASS pain score. With the prematurity correction of up to +3 the maximum is 13, a value the pathway has no band for. The document as written does not appear to contemplate the correction at all.',
     question:
       'Do the bands 0-3, 4-6 and 7-10 apply to the raw score or the gestational-age-corrected score? If corrected, what band covers 11 to 13? v2 applies them to the corrected score and treats anything above 10 as the top band.',
+  },
+  {
+    id: 'acetaminophen-pma-bands',
+    severity: 'medium',
+    where: 'POSTOP_DOSING.acetaminophen.ivByPma',
+    finding:
+      'The pathway prints acetaminophen IV 7.5 to 15 mg/kg/dose q6h, dose based on postmenstrual age, and gives no band breakpoints. The three bands in use, under 32 weeks at 7.5 mg/kg, under 37 at 10, and 37 or above at 15, were carried over from the PainWise NICU source and are not in the pathway document. The daily maxima are likewise carried over.',
+    question:
+      'Confirm the postmenstrual age breakpoints and the daily maxima, or point to the local monograph they should come from.',
   },
   {
     id: 'exposure-day-counter',

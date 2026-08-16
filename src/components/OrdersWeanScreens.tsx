@@ -19,7 +19,7 @@ export const OrdersScreen = () => {
   const s = useStore();
   const doses = calculateInitialDoses(s.ctx.weightKg ?? Number.NaN, s.postmenstrualAgeWeeks, s.ctx);
   const surgeryClass = classifySurgery(s.surgeryType);
-  const eligibility = checkEligibility(s.ctx, s.opioidExposureDays);
+  const eligibility = checkEligibility(s.ctx, s.opioidExposureDaysAtEntry);
 
   return (
     <div className="space-y-5">
@@ -141,7 +141,7 @@ export const WeanScreen = () => {
       <Card title="May weaning start?" icon={<Clock className="w-5 h-5 text-sky-700" />}>
         <div className="space-y-4">
           <Field
-            label="Hours since return from theatre"
+            label="Hours since return to the unit"
             hint={`The pathway holds the rate for the first ${WEANING_READINESS.earliestHoursPostOp} hours`}
           >
             <input

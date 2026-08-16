@@ -264,9 +264,9 @@ occlusion and to abstain past roughly a third.
 
 ### What changed in 2025 and 2026
 
-The literature review above was written against work up to 2024. A re-check in
-August 2026 turned up four things worth recording, one of which bears directly on
-whether TENDER's central design choice was the right one.
+The review above was written against work up to 2024. A re-check in August 2026
+found six things worth recording. Two of them bear directly on whether TENDER's
+central design choices were the right ones, and both landed in TENDER's favour.
 
 **The adult field is maturing and has left neonates behind.** A 2025 systematic
 review of AI facial-expression pain assessment covered 25 studies published between
@@ -277,58 +277,107 @@ annotation schemes, and reported performance without confidence intervals. A rev
 that has to exclude infants to find a coherent body of evidence is a statement
 about how thin the neonatal evidence still is.
 
-**Real-world deployment has been attempted, once, at scale.** An AI neonatal pain
-assessment system was run against 232 newborns during routine blood sampling, with
-NIPS as the reference. It reached 88.79% agreement on the pain score (kappa 0.92),
-95.25% on the pain grade (kappa 0.90), and r = 0.95 against nurse scoring.
-Specificity for severe pain was 87.84%, and the authors attribute the shortfall to
-using face without cry, which is the same finding the USF group reported from the
-other direction when sound outperformed face. The operational detail matters more
-than the numbers: the study required an additional nurse to hold the camera. A tool
-that costs a pair of hands during a procedure has not solved the problem it set out
-to solve, and this is the argument for a fixed cot-side mount rather than a
-handheld device.
+**Real-world deployment has been attempted at scale, and the cost was a pair of
+hands.** An AI pain assessment system was run against 232 newborns during routine
+blood sampling with NIPS as the reference. It reached 88.79% agreement on the pain
+score (kappa 0.92), 95.25% on the pain grade (kappa 0.90), and r = 0.95 against
+nurse scoring. Specificity for severe pain was 87.84%, and the authors attribute
+the shortfall to using face without cry, which is the USF finding arrived at from
+the other direction. The operational detail matters more than the numbers: the
+study required an additional nurse to hold the camera. A tool that costs a pair of
+hands during a procedure has not solved the problem it set out to solve, and this
+is the argument for a fixed cot-side mount rather than a handheld device.
 
-**The current state of the art predicts an instrument, not a pain label.** SSS-TT
-(2026, *Applied Intelligence*) combines masked autoencoder pretraining with a
-cascaded vision transformer and a temporal convolutional network, and trains with
-an ordinal regression objective, CORAL loss, aligned to **NIPS levels 0 to 3**. On
-iCOPE, roughly 1000 infants with subject-level splits, it reports 84.6% ± 0.7%
-accuracy and a quadratic weighted kappa of 0.82, which the authors describe as
-comparable to clinician agreement.
+#### The state of the art now predicts an instrument, not a pain label
 
-This is the finding that matters for TENDER. The strongest current system does not
-invent a pain score; it predicts the ordinal levels of an instrument clinicians
-already use, and it treats the levels as ordered rather than as unrelated classes.
-That is the same position TENDER took for a different reason, which was that a
-number nobody can trace back to a defined observation cannot be argued with at the
-bedside. Two paths, one destination, and the convergence is worth more than either
-argument alone.
+**SSS-TT** (El Othmani and Ouersighni, *Applied Intelligence* 2026) combines masked
+autoencoder pretraining with a vision transformer and temporal convolutional
+network over one-second windows, and trains with an ordinal regression objective,
+CORAL loss, aligned to **NIPS levels 0 to 3**. On iCOPE, 1000 infants with
+subject-level splits and five-fold cross-validation, it reports 84.6% ± 0.7%
+accuracy and a quadratic weighted kappa of 0.82. Masked-autoencoder pretraining cut
+annotation requirements by roughly three quarters, which is the practical finding
+for anyone contemplating a local model.
 
-The reservation is unchanged. iCOPE is not publicly available, subject-level splits
-inside one dataset are not external validation, and 84.6% on a benchmark says
-nothing about a 26-week infant on CPAP with tape across the nasolabial fold.
+**PANDIA** (*PLOS Digital Health* 2026) goes further in the same direction and is
+the more consequential paper for TENDER. It projects face, cry and physiological
+inputs onto **12 named clinical concepts**, fuses them with a graph network, and
+runs a symbolic rule engine over the result to produce a human-readable
+explanation with an uncertainty estimate. It maps NIPS, COMFORT-B and PIPP-R onto a
+single four-level ordinal scheme rather than inventing a score. And it **adapts to
+the individual infant**, using meta-learning over 5 to 20 labelled examples, which
+buys 3.2 to 4.7 percentage points of accuracy over the non-personalised model.
+Evaluated across 2847 infants in four datasets including 490 newly collected across
+four African hospitals, it reports 87.3% accuracy, quadratic weighted kappa 0.847,
+and a 92.1% clinician acceptance rate for its explanations.
 
-**Touchless monitoring is arriving from the vital-signs direction.** A 2025
-*Pediatric Research* commentary on contactless NICU monitoring reports depth-camera
-motion detection at 93.8% sensitivity and 92.2% specificity, while noting that the
-methods are computationally heavy and need far more training across varied NICU
-environments before they generalise. Depth is a channel TENDER does not use and
-could not use from a browser, but it is the likeliest route by which body movement,
-a PIPP-R and N-PASS item that facial landmarks cannot reach, eventually becomes
-automatable.
+Three of TENDER's load-bearing decisions appear in that description. Predict the
+levels of an instrument clinicians already use, rather than a novel score. Route
+the prediction through named clinical concepts a clinician can inspect and reject,
+rather than an opaque number. And **normalise to the individual infant**, which is
+what TENDER's per-infant baseline calibration does by a cruder mechanism: PANDIA
+adapts learned weights from labelled examples, TENDER takes a median and a robust
+spread from a settled recording and thresholds against that. Both are answers to the
+same problem, which is that a resting neonatal face is not a fixed thing.
 
-> Systematic review of artificial intelligence in facial-expression-based pain
-> assessment, 2015 to 2025. Neonatal and paediatric populations excluded by
-> protocol.
+The reservations are unchanged and PANDIA states one of them plainly: a **7.5%
+out-of-distribution generalisation gap** on unseen datasets, retrospective
+validation only, and no prospective trial. iCOPE is not publicly available.
+Subject-level splits inside one dataset are not external validation. And nothing in
+either paper says anything about a 26-week infant on CPAP with tape across the
+nasolabial fold. This is precisely why no trained weights ship in this repository.
+
+#### Touchless and contactless monitoring
+
+**Depth cameras, two sites, and a transfer penalty worth noting.** A multi-centre
+study placed an Intel RealSense D415 depth camera around the beds of 61 neonates at
+two level III units, in Los Angeles and Utah, and classified motion from depth
+difference frames with a random forest. Pooled, it reports 93.8% sensitivity, 92.2%
+specificity and an AUC of 0.984. The number that matters more is the cross-site
+one: trained on the Los Angeles data and tested on Utah, **specificity fell from
+92.2% to 81.5%**. That is a simple binary motion task, not a pain judgement, and it
+still lost ten points crossing between two units in the same country. Any claim
+that a pain model trained elsewhere will work at ACH has to answer that number.
+
+Depth is a channel TENDER does not use and could not use from a browser, but it is
+the likeliest route by which body movement, a PIPP-R and N-PASS item that facial
+landmarks cannot reach, eventually becomes automatable.
+
+**Contact sensors are a real alternative to vision.** Flexible wireless biosensors
+on the chest and dorsal foot, carrying accelerometer, gyroscope, heart rate,
+respiratory rate and acoustic channels, were used to build a Clinical Sensor Pain
+Scale and an Automated Sensor Pain Scale in 32 late preterm and term infants during
+phlebotomy. Against N-PASS the clinical version reached an ICC of 0.95 and 95%
+absolute agreement, and the automated version was statistically equivalent to
+N-PASS with a Bland-Altman mean difference of -0.016. Small, single centre, and
+untested in hypotonic infants, but it points at a route that does not require the
+face to be visible, which in a prone infant on CPAP is most of the time.
+
+**And the field is saying so out loud.** A 2026 *Pediatric Research* commentary,
+"Beyond the face", argues that facial coding alone is insufficient and that
+physiological and behavioural channels have to be integrated, noting that current
+NICU pain monitoring remains intermittent spot checks rather than continuous
+observation. It offers no new data, but it is a statement of where the field
+believes the problem now sits.
+
+> El Othmani O, Ouersighni R. SSS-TT: self-supervised sequential spatio-temporal
+> transformers with adaptive multimodal fusion for automated neonatal pain
+> assessment. *Appl Intell.* 2026;56:220. doi:10.1007/s10489-026-07233-x
 >
-> Real-world evaluation of an AI neonatal pain assessment system during blood
-> sampling, 232 newborns, NIPS reference standard. 2025.
+> PANDIA: personalized neuro-symbolic multimodal fusion for interpretable neonatal
+> pain assessment. *PLOS Digit Health.* 2026. doi:10.1371/journal.pdig.0001442
 >
-> SSS-TT: masked-autoencoder pretraining with cascaded ViT and TCN, ordinal
-> regression by CORAL loss on NIPS levels. *Appl Intell.* 2026.
+> Touchless monitoring of neonatal activity: a multi-center study. *Pediatr Res.*
+> 2025. doi:10.1038/s41390-025-04294-5
 >
-> Contactless monitoring in the neonatal intensive care unit. *Pediatr Res.* 2025.
+> Beyond the face: advancing multimodal AI for neonatal pain assessment.
+> *Pediatr Res.* 2026. doi:10.1038/s41390-026-04888-7
+>
+> Continuous wireless sensor monitoring with applied diagnostics: Clinical Sensor
+> Pain Scale and Automated Sensor Pain Scale in the NICU. PMC12658508.
+>
+> Artificial intelligence based pain assessment technology in clinical application
+> of real-world neonatal blood sampling. PMC9406884.
 
 ### Physiological indices
 
@@ -388,6 +437,16 @@ computes the median and a robust standard deviation (median absolute deviation
 scaled by 1.4826) for each action, and codes an action present when activation
 exceeds that infant's own baseline by k robust SDs, defaulting to 3. Without a
 baseline the extractor codes nothing rather than guessing.
+
+The 2026 literature converged on the same requirement from a different direction.
+PANDIA's per-infant meta-learned adaptation buys 3.2 to 4.7 percentage points of
+accuracy over its own non-personalised model, which is a large fraction of the
+margin between a research result and a usable one. Their mechanism is learned
+weights updated from 5 to 20 labelled examples; TENDER's is a median and a robust
+spread from a settled recording, needing no labels at all. The mechanisms are not
+comparable in sophistication. The premise behind them is the same, and it is the
+premise this application is built on: there is no such thing as a resting neonatal
+face in general, only this infant's.
 
 ### When no settled reference exists
 
@@ -475,3 +534,9 @@ acquisition system.
 - [EDIN scale, prolonged pain in preterm infants](https://www.e-cep.org/journal/view.php?number=20125553464)
 - [NIPS and N-PASS scoring tables](https://healthcare.ascension.org/-/media/project/ascension/healthcare/markets/wisconsin/ministry-health-care/pain-assessment--tools.pdf)
 - [PFECIC: pain facial expressions dataset for critically ill children — Sci Rep 2025](https://www.nature.com/articles/s41598-025-02247-w)
+- [SSS-TT: self-supervised sequential spatio-temporal transformers for neonatal pain — Appl Intell 2026](https://link.springer.com/article/10.1007/s10489-026-07233-x)
+- [PANDIA: personalized neuro-symbolic multimodal fusion for interpretable neonatal pain assessment — PLOS Digit Health 2026](https://journals.plos.org/digitalhealth/article?id=10.1371%2Fjournal.pdig.0001442)
+- [Touchless monitoring of neonatal activity: a multi-center study — Pediatr Res 2025](https://www.nature.com/articles/s41390-025-04294-5)
+- [Beyond the face: advancing multimodal AI for neonatal pain assessment — Pediatr Res 2026](https://www.nature.com/articles/s41390-026-04888-7)
+- [Continuous wireless sensor monitoring: Clinical and Automated Sensor Pain Scales in the NICU](https://pmc.ncbi.nlm.nih.gov/articles/PMC12658508/)
+- [AI-based pain assessment in real-world neonatal blood sampling](https://pmc.ncbi.nlm.nih.gov/articles/PMC9406884/)

@@ -30,7 +30,7 @@ const VENTILATION: { id: VentilationStatus; label: string }[] = [
 
 export const ContextScreen = () => {
   const s = useStore();
-  const eligibility = checkEligibility(s.ctx, s.opioidExposureDays);
+  const eligibility = checkEligibility(s.ctx, s.opioidExposureDaysAtEntry);
   const surgeryClass = classifySurgery(s.surgeryType);
 
   return (
@@ -125,7 +125,7 @@ export const ContextScreen = () => {
             </Field>
 
             <Field
-              label="Opioid exposure (days)"
+              label="Total opioid exposure to date (days)"
               hint="Selects the taper rule and triggers WAT-1 beyond 5 days"
             >
               <input
@@ -134,6 +134,19 @@ export const ContextScreen = () => {
                 className={inputClass}
                 value={s.opioidExposureDays || ''}
                 onChange={(e) => s.setField('opioidExposureDays', Number(e.target.value))}
+              />
+            </Field>
+
+            <Field
+              label="Opioid exposure on arrival from OR (days)"
+              hint="Eligibility screening only. Asked once, and not the running total"
+            >
+              <input
+                type="number"
+                min={0}
+                className={inputClass}
+                value={s.opioidExposureDaysAtEntry || ''}
+                onChange={(e) => s.setField('opioidExposureDaysAtEntry', Number(e.target.value))}
               />
             </Field>
 

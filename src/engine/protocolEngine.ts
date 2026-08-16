@@ -42,9 +42,19 @@ export interface EligibilityResult {
   notes: string[];
 }
 
+/**
+ * Screening at the door, asked once.
+ *
+ * `opioidExposureDaysAtEntry` is exposure on arrival from theatre, which is the
+ * quantity the pathway's eligibility box asks about. It is deliberately not the
+ * running total. An earlier version passed the cumulative figure here, so an
+ * infant who entered the pathway on day 8 was declared off-pathway on day 11 and
+ * had their taper schedule labelled reference only, when the pathway prints an
+ * 11-or-more-day rule inside the standard flow.
+ */
 export const checkEligibility = (
   ctx: PatientContext,
-  opioidExposureDays: number,
+  opioidExposureDaysAtEntry: number,
 ): EligibilityResult => {
   const exclusions: EligibilityResult['exclusions'] = [];
   const notes: string[] = [];
@@ -57,12 +67,12 @@ export const checkEligibility = (
       'Encephalopathy is recorded. Behavioural scores may be blunted; interpret escalation thresholds with that in mind.',
     );
   }
-  if (opioidExposureDays > ELIGIBILITY.maxOpioidExposureDays) {
+  if (opioidExposureDaysAtEntry > ELIGIBILITY.maxOpioidExposureDaysAtEntry) {
     exclusions.push({
       key: 'extended_exposure',
-      label: `Opioid exposure beyond ${ELIGIBILITY.maxOpioidExposureDays} days`,
+      label: `Opioid exposure beyond ${ELIGIBILITY.maxOpioidExposureDaysAtEntry} days on arrival`,
       reason:
-        'Prolonged exposure carries a higher risk of iatrogenic withdrawal than the standard taper anticipates. Requires an individualised plan.',
+        'Prolonged exposure before the infant reached the pathway carries a higher risk of iatrogenic withdrawal than the standard taper anticipates. Requires an individualised plan.',
     });
   }
 
@@ -192,7 +202,8 @@ export interface WeaningReadiness {
  * current rate, and has the rate been left alone. Fail either and the pathway
  * loops back to three-hourly scoring rather than proceeding.
  *
- * `hoursSincePostOp` is hours since return from theatre. Pass null when it has not
+ * `hoursSincePostOp` is hours since return to the unit, which is how the pathway
+ * measures it. Pass null when it has not
  * been entered; the gate then reports what it cannot judge instead of assuming.
  */
 export const checkWeaningReadiness = (params: {
@@ -208,13 +219,13 @@ export const checkWeaningReadiness = (params: {
   const unknown: string[] = [];
 
   if (hoursSincePostOp === null || !Number.isFinite(hoursSincePostOp)) {
-    unknown.push('Hours since return from theatre has not been entered.');
+    unknown.push('Hours since return to the unit has not been entered.');
   } else if (hoursSincePostOp < R.earliestHoursPostOp) {
     blockers.push(
-      `${hoursSincePostOp} hours post-operatively. The pathway holds the rate for the first ${R.earliestHoursPostOp} hours.`,
+      `${hoursSincePostOp} hours since return to the unit. The pathway holds the rate for the first ${R.earliestHoursPostOp} hours.`,
     );
   } else {
-    satisfied.push(`${hoursSincePostOp} hours post-operatively, past the ${R.earliestHoursPostOp}-hour hold.`);
+    satisfied.push(`${hoursSincePostOp} hours since return to the unit, past the ${R.earliestHoursPostOp}-hour hold.`);
   }
 
   if (correctedNpass === null) {
@@ -328,6 +339,9 @@ export const planWeaning = (
 
 export type Urgency = 'low' | 'medium' | 'high';
 
+/** Both elevated bands end at the same place: back onto the routine cadence. */
+const ONGOING_CADENCE = `Return to N-PASS q${ASSESSMENT_SCHEDULE.intensiveIntervalHours}-${ASSESSMENT_SCHEDULE.maintenanceIntervalHours}h, and WAT-1 q${ASSESSMENT_SCHEDULE.wat1.intervalHours}h if indicated.`;
+
 /**
  * Count the run of elevated scores ending at the most recent one.
  *
@@ -418,9 +432,11 @@ export const decideEscalation = (params: {
   // The pathway pauses the wean on the second consecutive elevated score, not the
   // first. A single reading buys the checklist and a rescore.
   const strikesMet = consecutiveElevated >= ESCALATION.consecutiveElevatedBeforePause;
+  // States the count only. What follows from it differs by band, and the actions
+  // list is where that difference belongs.
   const strikeNote = strikesMet
-    ? `This is elevated score ${consecutiveElevated} in a row, so the wean pauses.`
-    : `First elevated score. The wean pauses only if the score ${ASSESSMENT_SCHEDULE.reassessAfterInterventionMinutes[0]} to ${ASSESSMENT_SCHEDULE.reassessAfterInterventionMinutes[1]} minutes from now is still elevated.`;
+    ? `Elevated score ${consecutiveElevated} in a row, which is what the pathway's "elevated scores q 30-60 min x 2" note counts.`
+    : `First elevated score. The wean is only paused if the score ${ASSESSMENT_SCHEDULE.reassessAfterInterventionMinutes[0]} to ${ASSESSMENT_SCHEDULE.reassessAfterInterventionMinutes[1]} minutes from now is still elevated.`;
 
   if (painHigh || withdrawalHigh) {
     const actions = [
@@ -435,6 +451,7 @@ export const decideEscalation = (params: {
     actions.push(
       `Rescore N-PASS, and WAT-1 if indicated, ${ASSESSMENT_SCHEDULE.reassessAfterPrnMinutes} minutes after the PRN dose.`,
     );
+    actions.push(ONGOING_CADENCE);
     return {
       urgency: 'high',
       headline: 'Rescue dose indicated',
@@ -449,15 +466,23 @@ export const decideEscalation = (params: {
       'Complete the multisensorial comfort checklist before any pharmacological step.',
       `Rescore in ${ASSESSMENT_SCHEDULE.reassessAfterInterventionMinutes[0]} to ${ASSESSMENT_SCHEDULE.reassessAfterInterventionMinutes[1]} minutes.`,
     ];
-    actions.push(
-      strikesMet
-        ? `Two consecutive elevated scores. Give the PRN dose and pause the wean for ${ESCALATION.pauseWeanHoursMidBand} hours.`
-        : 'If the repeat score stays at or above threshold, escalate to a PRN dose.',
-    );
+    // The middle band says CONSIDER, not GIVE. That verb is the whole difference
+    // between the two bands after two strikes, so it is quoted rather than
+    // paraphrased into something firmer.
+    if (strikesMet) {
+      actions.push(
+        `Consider pausing the wean for ${ESCALATION.pauseWeanHoursMidBand} hours.`,
+        'Consider a PRN opioid dose, which the pathway indicates for N-PASS above 3 and/or WAT-1 above 2.',
+        `If a dose is given, rescore ${ASSESSMENT_SCHEDULE.reassessAfterPrnMinutes} minutes after it.`,
+        ONGOING_CADENCE,
+      );
+    } else {
+      actions.push('If the repeat score stays at or above threshold, escalate to a PRN dose.');
+    }
     return {
       urgency: strikesMet ? 'high' : 'medium',
       headline: strikesMet
-        ? 'Second consecutive elevated score: escalate'
+        ? 'Second consecutive elevated score: consider pausing and dosing'
         : 'Comfort measures first, then rescore',
       actions,
       drivers: [...drivers, strikeNote],

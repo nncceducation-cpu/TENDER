@@ -38,7 +38,10 @@ interface AppState {
   ctx: PatientContext;
   /** Free-text surgery label; classification happens in the engine. */
   surgeryType: string;
+  /** Cumulative opioid exposure to date. Selects the taper rule and WAT-1. */
   opioidExposureDays: number;
+  /** Exposure on arrival from theatre. Screening only, asked once. */
+  opioidExposureDaysAtEntry: number;
   currentInfusionMcgPerKgPerHour: number | null;
   recentUptitration: boolean;
   /** Hours since return from theatre. Drives the weaning readiness gate. */
@@ -85,6 +88,7 @@ export const useStore = create<AppState>((set, get) => ({
   ctx: { ...EMPTY_CONTEXT },
   surgeryType: '',
   opioidExposureDays: 0,
+  opioidExposureDaysAtEntry: 0,
   currentInfusionMcgPerKgPerHour: null,
   recentUptitration: false,
   hoursSincePostOp: null,
@@ -136,6 +140,7 @@ export const useStore = create<AppState>((set, get) => ({
       ctx: { ...EMPTY_CONTEXT },
       surgeryType: '',
       opioidExposureDays: 0,
+      opioidExposureDaysAtEntry: 0,
       currentInfusionMcgPerKgPerHour: null,
       recentUptitration: false,
       hoursSincePostOp: null,
@@ -157,6 +162,23 @@ export const useStore = create<AppState>((set, get) => ({
         clinician: s.clinician,
         localId: s.ctx.localId,
         context: s.ctx,
+        /**
+         * The protocol inputs, not just the scores.
+         *
+         * Without these the export records that the tool recommended a 10% q24h
+         * taper and gives no way to check whether that was the right rule. Anyone
+         * re-reading this file later needs the numbers the recommendation was
+         * derived from, not only the recommendation.
+         */
+        protocolInputs: {
+          surgeryType: s.surgeryType,
+          opioidExposureDays: s.opioidExposureDays,
+          opioidExposureDaysAtEntry: s.opioidExposureDaysAtEntry,
+          currentInfusionMcgPerKgPerHour: s.currentInfusionMcgPerKgPerHour,
+          recentUptitration: s.recentUptitration,
+          hoursSincePostOp: s.hoursSincePostOp,
+          postmenstrualAgeWeeks: s.postmenstrualAgeWeeks,
+        },
         assessments: s.assessments,
         calibration: s.calibration
           ? {

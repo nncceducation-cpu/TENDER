@@ -97,10 +97,15 @@ describe('weaning', () => {
     expect(planWeaning(6, 2).rule.reductionPercent).toBe(20);
   });
 
-  it('marks the eleven-day-plus schedule as off the standard pathway', () => {
+  it('keeps the eleven-day-plus schedule inside the pathway', () => {
+    // The flowchart prints "11+ days: decrease 10% of original dose q24h" inside
+    // the standard weaning box. Exposure accumulates on the pathway; the 10-day
+    // cap is an entry criterion, not a running one.
     const p = planWeaning(14, 2);
-    expect(p.offPathway).toBe(true);
-    expect(p.notes.join(' ')).toMatch(/pain service/);
+    expect(p.offPathway).toBe(false);
+    expect(p.rule.reductionPercent).toBe(10);
+    expect(p.rule.intervalHours).toBe(24);
+    expect(p.wat1Required).toBe(true);
   });
 
   it('requires WAT-1 beyond five days of exposure', () => {
@@ -278,9 +283,12 @@ describe('the two-strike pause rule', () => {
     expect(r.urgency).toBe('medium');
     expect(r.actions.join(' ')).not.toMatch(/pause the wean/i);
     expect(r.drivers.join(' ')).toMatch(/First elevated score/);
+    expect(r.drivers.join(' ')).not.toMatch(/in a row/);
   });
 
-  it('escalates a second consecutive mid-band score to a dose and a pause', () => {
+  it('says consider, not give, on a second mid-band score', () => {
+    // The pathway's middle band reads CONSIDER pausing and CONSIDER PRN. Only the
+    // upper band uses the imperative. That verb is the difference between them.
     const r = decideEscalation({
       correctedNpass: 5,
       wat1: null,
@@ -289,7 +297,34 @@ describe('the two-strike pause rule', () => {
       consecutiveElevated: 2,
     });
     expect(r.urgency).toBe('high');
-    expect(r.actions.join(' ')).toMatch(/pause the wean for 12 hours/i);
+    expect(r.actions.join(' ')).toMatch(/Consider pausing the wean for 12 hours/);
+    expect(r.actions.join(' ')).toMatch(/Consider a PRN opioid dose/);
+    expect(r.actions.join(' ')).not.toMatch(/Give the PRN/);
+  });
+
+  it('uses the imperative in the upper band, where the pathway does', () => {
+    const r = decideEscalation({
+      correctedNpass: 9,
+      wat1: null,
+      opioidExposureDays: 3,
+      recentUptitration: false,
+      consecutiveElevated: 2,
+    });
+    expect(r.actions[0]).toMatch(/^Give the PRN opioid dose/);
+    expect(r.actions.join(' ')).toMatch(/Pause the wean for 12 to 24 hours/);
+  });
+
+  it('returns both bands to the routine cadence', () => {
+    for (const npass of [5, 9]) {
+      const r = decideEscalation({
+        correctedNpass: npass,
+        wat1: null,
+        opioidExposureDays: 8,
+        recentUptitration: false,
+        consecutiveElevated: 2,
+      });
+      expect(r.actions.join(' ')).toMatch(/Return to N-PASS q3-6h, and WAT-1 q12h if indicated/);
+    }
   });
 
   it('gives the rescue dose on the first high-band score but defers the pause', () => {
@@ -324,5 +359,21 @@ describe('the two-strike pause rule', () => {
       recentUptitration: false,
     });
     expect(r.urgency).toBe('medium');
+  });
+});
+
+
+describe('eligibility screens at entry, not continuously', () => {
+  it('excludes an infant who arrived with more than ten days of exposure', () => {
+    const r = checkEligibility(ctx(), 12);
+    expect(r.eligible).toBe(false);
+    expect(r.exclusions[0].label).toMatch(/on arrival/);
+  });
+
+  it('does not exclude an infant who accumulated past ten days while on the pathway', () => {
+    // Entered at 6 days, now at 14. The pathway has a rule for this infant.
+    const r = checkEligibility(ctx(), 6);
+    expect(r.eligible).toBe(true);
+    expect(planWeaning(14, 2).offPathway).toBe(false);
   });
 });

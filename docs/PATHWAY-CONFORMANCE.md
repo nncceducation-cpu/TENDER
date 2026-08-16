@@ -5,7 +5,7 @@ Pathway, Alberta Children's Hospital NICU, 24 February 2025.**
 
 Checked line by line against the code on 16 August 2026. This file records what
 matched, what did not, and what the pathway does not say. It is the audit trail for
-`PROTOCOL_VERSION` 2.2.0-draft.
+`PROTOCOL_VERSION` 2.3.0-draft.
 
 ---
 
@@ -33,7 +33,7 @@ every one is unchanged after the check.
 | WAT-1 bands 0-2, 3-5, 6-12 | `ESCALATION.wat1ChecklistThreshold`, `wat1BolusThreshold` |
 | PRN indicated for N-PASS above 3 and/or WAT-1 above 2 | `decideEscalation` |
 
-## What the pathway specifies and the code did not do
+## First pass: what the pathway specifies and the code did not do
 
 Three gaps. All three are now implemented, with tests.
 
@@ -53,8 +53,8 @@ Now `WEANING_READINESS` in `ach.ts` and `checkWeaningReadiness` in
 `protocolEngine.ts`. The weaning screen leads with the gate, names which conditions
 are satisfied and which are not, and marks the schedule below it as planning only
 until the gate opens. Where a condition cannot be judged, because the hours since
-theatre or the N-PASS score has not been entered, the gate says so rather than
-assuming.
+return to the unit or the N-PASS score has not been entered, the gate says so
+rather than assuming.
 
 ### 2. Elevated scores are counted, and the second one is the one that acts
 
@@ -73,11 +73,63 @@ it by hand. Scores from other instruments do not break or extend the run.
 
 ### 3. "Original dose" needed defining where the number is entered
 
-Reductions are a percentage of the rate on return from theatre, not of the current
+Reductions are a percentage of the rate on return from OR, not of the current
 rate, which is why the infusion reaches zero in a fixed number of steps rather than
 approaching it forever. The field was labelled "current infusion", which invites the
 wrong number on day three of a taper. It is now labelled original, and
 `ORIGINAL_DOSE_DEFINITION` is printed under it.
+
+---
+
+## Second pass, same document
+
+The first pass looked for things the pathway specifies that the code did not do.
+The second looked for the opposite: things the code does that the pathway does not
+support. It found two, both of which made the application stricter than the
+protocol.
+
+### 4. The 10-day exposure limit is an entry criterion, not a running one
+
+The eligibility box reads "neonates admitted to ACH NICU immediately post-operative
+AND no paralysis AND 10 days opioid exposure or less AND no known hepatic
+dysfunction". Every one of those is a question asked once, on arrival from theatre.
+
+The code applied the 10-day limit to cumulative exposure, which is a different
+quantity that grows every day the infant stays on the protocol. An infant who
+entered eligible on day 8 was declared off-pathway on day 11, and the eligibility
+banner told the clinician not to prescribe from the orders screen. That is not what
+the document says, and it fires on exactly the infant who most needs the protocol
+followed.
+
+Exposure is now two fields. `opioidExposureDaysAtEntry` screens once and feeds
+`checkEligibility`. `opioidExposureDays` is the running total and feeds the taper
+rule and the WAT-1 trigger, which are the two places the pathway actually uses
+cumulative exposure.
+
+### 5. The 11-or-more-day taper is inside the pathway
+
+The flowchart prints "11+ days: decrease opioid dose 10% of original dose q24h"
+inside the standard weaning box, downstream of eligibility and alongside the 6 to
+10 day rule. It is reachable by any infant who entered eligible and stayed on
+opioid.
+
+The code had it marked `withinStandardPathway: false`, on the reasoning that
+eligibility capped exposure at 10 days so the branch was unreachable. That
+reasoning was wrong, for the reason in finding 4, and the consequence was a
+red "beyond the standard pathway, reference only" banner over a schedule the
+pathway prints as standard. Now marked as within the pathway.
+
+### 6. The middle band says CONSIDER, and now so does the app
+
+After two elevated scores the middle band reads: CONSIDER pausing wean for 12h,
+CONTINUE multisensorial checklist, CONSIDER PRN opioid. The upper band reads PAUSE
+and GIVE. That verb is the entire clinical difference between the two bands.
+
+The app had rendered the middle band as "give the PRN dose and pause the wean",
+which is upper-band language. Both bands now also print the return cadence the
+pathway specifies, N-PASS q3-6h with WAT-1 q12h if indicated.
+
+---
 
 ## What the pathway does not say
 
@@ -101,10 +153,15 @@ top band and is less explicit in the middle. TENDER uses 12 hours for a middle-b
 pause and the full 12 to 24 hour range for the top band, as
 `ESCALATION.pauseWeanHoursMidBand`.
 
-**Whether the acetaminophen course is five days total.** The IV 72 hours and the
-oral 48 hours read as one scheduled five-day course. Encoded as
-`POSTOP_DOSING.acetaminophenTotalCourseDays` so the reading is visible and can be
-corrected in one place.
+**The acetaminophen course is five days total**, per the document's own footnote,
+and that is encoded as `POSTOP_DOSING.acetaminophenTotalCourseDays`.
+
+**The acetaminophen dose bands are not in the document.** The pathway prints IV 7.5
+to 15 mg/kg/dose q6h, "dose based on postmenstrual age / CGA", and stops there. The
+three breakpoints in use, 7.5 mg/kg under 32 weeks, 10 under 37, and 15 at 37 and
+above, together with the daily maxima, were carried over from the PainWise NICU
+source and have no support in this document. Carried as
+`REVIEW_FLAGS['acetaminophen-pma-bands']`.
 
 **The breakthrough dose conflict is unchanged by this document.** The pathway
 specifies fentanyl 1 mcg/kg q3h PRN. The opioid converter derives a breakthrough
