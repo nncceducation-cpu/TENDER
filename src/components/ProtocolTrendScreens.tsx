@@ -1,9 +1,12 @@
-import { Download, FileText, FileWarning, LineChart, ShieldCheck } from 'lucide-react';
+import { Database, Download, FileText, FileWarning, LineChart, ShieldCheck } from 'lucide-react';
 import { useStore } from '../state/store';
 import { Button, Callout, Card, Stat } from './ui';
 import { PROTOCOL_VERSION, REVIEW_FLAGS } from '../data/protocol/ach';
 import { PAIN_SCALES, WAT_1 } from '../data/scales';
 import { buildSessionReport } from '../state/report';
+import { assessmentsToCsv, downloadText, framesToCsv } from '../state/rawExport';
+import { TrendSmallMultiples, type TrendSeries } from './viz/Charts';
+import { SCALES } from '../data/scales';
 
 export const ProtocolScreen = () => (
   <div className="space-y-5">
@@ -110,7 +113,41 @@ export const TrendScreen = () => {
     doc.save(`tender-report-${s.ctx.localId || 'unidentified'}-${Date.now()}.pdf`);
   };
 
-  const max = Math.max(1, ...assessments.map((a) => a.total));
+  const stamp = () => `${s.ctx.localId || 'unidentified'}-${Date.now()}`;
+
+  const exportFrames = () =>
+    downloadText(`tender-frames-${stamp()}.csv`, framesToCsv(s.rawFrames));
+
+  const exportItems = () =>
+    downloadText(
+      `tender-items-${stamp()}.csv`,
+      assessmentsToCsv(assessments, {
+        localId: s.ctx.localId,
+        gaWeeks: s.ctx.gestationalAgeAtBirth.weeks,
+        gaDays: s.ctx.gestationalAgeAtBirth.days,
+      }),
+    );
+
+  /**
+   * One small multiple per instrument. N-PASS runs 0 to 13 and COMFORTneo 6 to
+   * 30; sharing an axis would either need two scales or imply that the same
+   * number means the same thing on both.
+   */
+  const series: TrendSeries[] = [...new Set(assessments.map((a) => a.scaleId))].map((id) => {
+    const scale = SCALES[id];
+    const points = assessments
+      .filter((a) => a.scaleId === id)
+      .map((a) => ({
+        t: new Date(a.timestamp).toLocaleTimeString(),
+        value: a.total,
+        severity: a.band?.severity,
+        label: a.band?.label,
+      }));
+    const thresholds = scale.bands
+      .filter((b) => b.severity === 'moderate' || b.severity === 'severe')
+      .map((b) => ({ at: b.min, label: b.label }));
+    return { instrument: `${scale.name} — ${scale.fullName}`, min: scale.range.min, max: scale.range.max, points, thresholds };
+  });
 
   return (
     <div className="space-y-5">
@@ -119,24 +156,9 @@ export const TrendScreen = () => {
           <p className="text-sm text-slate-600">No assessments recorded yet.</p>
         ) : (
           <div className="space-y-4">
-            <div className="flex items-end gap-1 h-32 border-b border-l border-slate-200 p-1">
-              {assessments.map((a) => (
-                <div
-                  key={a.id}
-                  title={`${a.scaleId} ${a.total} at ${new Date(a.timestamp).toLocaleTimeString()}`}
-                  className={`flex-1 min-w-2 rounded-t ${
-                    a.band?.severity === 'severe'
-                      ? 'bg-red-500'
-                      : a.band?.severity === 'moderate'
-                        ? 'bg-amber-500'
-                        : 'bg-emerald-500'
-                  }`}
-                  style={{ height: `${(a.total / max) * 100}%` }}
-                />
-              ))}
-            </div>
+            <TrendSmallMultiples series={series} />
 
-            <table className="w-full text-sm">
+            <table className="w-full text-sm [&_th]:px-3 [&_td]:px-3 [&_th:first-child]:pl-0 [&_td:first-child]:pl-0 [&_th:last-child]:pr-0 [&_td:last-child]:pr-0">
               <thead>
                 <tr className="text-left text-xs uppercase text-slate-500 border-b border-slate-200">
                   <th className="py-2">Time</th>
@@ -188,9 +210,34 @@ export const TrendScreen = () => {
             <FileText className="w-4 h-4" /> Session report (PDF)
           </Button>
           <Button onClick={download} variant="ghost">
-            <Download className="w-4 h-4" /> Export raw session (JSON)
+            <Download className="w-4 h-4" /> Session JSON
           </Button>
         </div>
+      </Card>
+
+      <Card title="Raw data" icon={<Database className="w-5 h-5 text-sky-700" />}>
+        <Callout tone="info" title="For analysis, not for the chart">
+          One row per sample, with nothing summarised away. This is what a
+          validation study needs to compare the tool's coding against a human
+          coder's, and what lets anyone recompute a figure rather than take it on
+          trust. CSV with a byte-order mark, so Excel opens it as UTF-8.
+        </Callout>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button onClick={exportFrames} variant="ghost" disabled={s.rawFrames.length === 0}>
+            <Database className="w-4 h-4" /> Per-frame coding ({s.rawFrames.length} rows)
+          </Button>
+          <Button onClick={exportItems} variant="ghost" disabled={assessments.length === 0}>
+            <Database className="w-4 h-4" /> Per-item scores (
+            {assessments.reduce((n, a) => n + a.items.length, 0)} rows)
+          </Button>
+        </div>
+        <p className="mt-3 text-xs text-slate-500">
+          Per-frame carries the raw activations, the coded actions, the geometric
+          measures and the quality of every sample from the last coding run.
+          Per-item carries one row for each scale item scored this session, with
+          whether it came from a clinician or a model, so a total can be
+          recomputed under a different rule.
+        </p>
       </Card>
     </div>
   );

@@ -44,9 +44,14 @@ export default function App() {
               <HeartPulse size={18} />
             </div>
             <div className="leading-tight">
-              <h1 className="font-bold text-slate-800">TENDER</h1>
-              <p className="text-[10px] uppercase tracking-wider text-slate-500">
-                Neonatal pain assessment support
+              <h1 className="font-bold text-slate-800 leading-none">TENDER</h1>
+              <p className="text-[10px] text-slate-500 leading-tight mt-0.5">
+                <span className="font-semibold text-slate-600">T</span>ool for{' '}
+                <span className="font-semibold text-slate-600">E</span>valuating{' '}
+                <span className="font-semibold text-slate-600">N</span>eonatal{' '}
+                <span className="font-semibold text-slate-600">D</span>istress in{' '}
+                <span className="font-semibold text-slate-600">E</span>xtended{' '}
+                <span className="font-semibold text-slate-600">R</span>eal-time
               </p>
             </div>
           </div>

@@ -6,7 +6,9 @@ import { isSelfReferenced, SELF_REFERENCE_CAVEAT } from '../ai/nfcsFeatures';
 import { buildSuggestions } from '../ai/suggestions';
 import { TransparentIndex } from '../ai/painModel';
 import { useStore } from '../state/store';
-import { Button, Callout, Card, Field, Stat, inputClass } from './ui';
+import { Button, Callout, Card, Field, inputClass } from './ui';
+import { BarChart, HeroScore, PresenceRibbon } from './viz/Charts';
+import type { RawFrameRow } from '../state/rawExport';
 import type { AiEvidence } from '../domain/types';
 
 /**
@@ -40,6 +42,7 @@ export const ClipAnalysis = () => {
   const selectedScale = useStore((s) => s.selectedScale);
   const setAiEvidence = useStore((s) => s.setAiEvidence);
   const setCalibration = useStore((s) => s.setCalibration);
+  const setRawFrames = useStore((s) => s.setRawFrames);
 
   const pick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -109,6 +112,17 @@ export const ClipAnalysis = () => {
 
       setResult(r);
       setCalibration(r.calibration);
+
+      const rows: RawFrameRow[] = r.coded.map((f, i) => ({
+        source: 'clip',
+        sampleId: `frame-${i}`,
+        tMs: Math.round(f.t),
+        faceFound: f.faceDetected,
+        quality: f.quality,
+        activations: f.activations,
+        coded: f.actions,
+      }));
+      setRawFrames(rows);
 
       const index = await new TransparentIndex().infer({ facial: r.summary });
       const { suggestions, abstentions } = buildSuggestions(
@@ -329,41 +343,49 @@ export const ClipAnalysis = () => {
 
         {result && (
           <div className="space-y-3 pt-2 border-t border-slate-200">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <Stat label="NFCS-P-3" value={`${result.summary.nfcsP3Sum}/30`} />
-              <Stat label="Usable seconds" value={result.summary.secondsUsable} />
-              <Stat label="Mean quality" value={result.summary.meanQuality.toFixed(2)} />
-              <Stat
-                label="Face found"
-                value={`${Math.round(result.faceFoundFraction * 100)}%`}
-                tone={result.faceFoundFraction < 0.5 ? 'alert' : 'default'}
-              />
-            </div>
+            <HeroScore
+              label="NFCS-P-3 facial activity"
+              value={result.summary.nfcsP3Sum}
+              scale={String(result.summary.secondsUsable * 3)}
+              severity={result.summary.nfcsP3Sum / Math.max(1, result.summary.secondsUsable * 3) > 0.3 ? 'moderate' : 'none'}
+              severityLabel={`${result.summary.secondsUsable} usable seconds`}
+            />
 
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase text-slate-500">
-                  <th className="py-1">Action</th>
-                  <th className="py-1 text-right">Present</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(result.summary.proportionPresent).map(([action, p]) => (
-                  <tr key={action} className="border-t border-slate-100">
-                    <td className="py-1 capitalize text-slate-700">{action.replace(/_/g, ' ')}</td>
-                    <td className="py-1 text-right tabular-nums text-slate-600">
-                      {Number.isFinite(p) ? `${(p * 100).toFixed(0)}%` : 'not measurable'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <BarChart
+              title="Proportion of the window each action was present"
+              maxLabel="present in every usable second"
+              caption={`Measured across ${result.summary.secondsUsable} usable seconds at a mean quality of ${result.summary.meanQuality.toFixed(2)}. A face was found in ${Math.round(result.faceFoundFraction * 100)}% of sampled frames.`}
+              data={Object.entries(result.summary.proportionPresent)
+                .filter(([, v]) => Number.isFinite(v))
+                .map(([action, v]) => ({
+                  label: action.replace(/_/g, ' '),
+                  value: v,
+                  display: `${(v * 100).toFixed(0)}%`,
+                }))}
+            />
 
-            {isSelfReferenced(result.calibration) && (
-              <Callout tone="warn" title="Referenced against itself">
-                {SELF_REFERENCE_CAVEAT}
-              </Callout>
-            )}
+            <PresenceRibbon
+              title="Second by second"
+              unitLabel="second"
+              caption="Each cell is one second of the scored range. This is the coding the proportions above are computed from."
+              rows={(['brow_bulge', 'eye_squeeze', 'nasolabial_furrow'] as const).map((a) => {
+                const bySecond = new Map<number, { present: number; total: number; q: number }>();
+                for (const f of result.coded) {
+                  const sec = Math.floor(f.t / 1000);
+                  const e = bySecond.get(sec) ?? { present: 0, total: 0, q: 0 };
+                  e.total += 1;
+                  e.q += f.quality;
+                  if (f.actions[a]) e.present += 1;
+                  bySecond.set(sec, e);
+                }
+                const secs = [...bySecond.keys()].sort((x, y) => x - y);
+                return {
+                  label: a.replace(/_/g, ' '),
+                  cells: secs.map((k) => bySecond.get(k)!.present > bySecond.get(k)!.total / 2),
+                  quality: secs.map((k) => bySecond.get(k)!.q / bySecond.get(k)!.total),
+                };
+              })}
+            />
 
             <p className="text-sm text-slate-600">
               Suggestions from this clip are now available on the scoring form below.

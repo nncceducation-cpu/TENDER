@@ -135,6 +135,8 @@ export interface ClipResult {
   problems: string[];
   /** Proportion of sampled scoring frames in which a face was found at all. */
   faceFoundFraction: number;
+  /** Every sample that was coded, kept for the raw export and the ribbon. */
+  coded: NfcsFrame[];
 }
 
 export interface ClipFailure {
@@ -231,6 +233,7 @@ export const analyseClip = async (
 
   return {
     calibration,
+    coded,
     summary: summariseWindow(coded, scoringSeconds),
     scoringSeconds,
     baselineSeconds,

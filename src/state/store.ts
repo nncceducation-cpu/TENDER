@@ -9,6 +9,7 @@ import type {
 import { AuditLog } from './audit';
 import { describeCalibration } from '../ai/nfcsFeatures';
 import type { InfantCalibration } from '../ai/nfcsFeatures';
+import type { RawFrameRow } from './rawExport';
 import { PROTOCOL_VERSION } from '../data/protocol/ach';
 
 export type Screen =
@@ -47,6 +48,11 @@ interface AppState {
   assessments: Assessment[];
   calibration: InfantCalibration | null;
   latestAiEvidence: AiEvidence | null;
+  /**
+   * Per-sample rows from the most recent coding run, kept so they can be
+   * exported. A summary nobody can recompute is a summary nobody should trust.
+   */
+  rawFrames: RawFrameRow[];
 
   audit: AuditLog;
 
@@ -57,6 +63,7 @@ interface AppState {
   addAssessment: (a: Assessment) => void;
   setCalibration: (c: InfantCalibration | null) => void;
   setAiEvidence: (e: AiEvidence | null) => void;
+  setRawFrames: (rows: RawFrameRow[]) => void;
   reset: () => void;
   exportSession: () => string;
 }
@@ -85,6 +92,7 @@ export const useStore = create<AppState>((set, get) => ({
   assessments: [],
   calibration: null,
   latestAiEvidence: null,
+  rawFrames: [],
 
   audit: new AuditLog(),
 
@@ -118,6 +126,8 @@ export const useStore = create<AppState>((set, get) => ({
 
   setAiEvidence: (latestAiEvidence) => set({ latestAiEvidence }),
 
+  setRawFrames: (rawFrames) => set({ rawFrames }),
+
   reset: () =>
     set({
       ctx: { ...EMPTY_CONTEXT },
@@ -129,6 +139,7 @@ export const useStore = create<AppState>((set, get) => ({
       assessments: [],
       calibration: null,
       latestAiEvidence: null,
+      rawFrames: [],
       audit: new AuditLog(),
       screen: 'context',
     }),

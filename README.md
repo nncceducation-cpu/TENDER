@@ -1,6 +1,6 @@
 # TENDER
 
-**T**ool for **E**valuating **N**eonatal **D**istress, **E**scalation and **R**esponse.
+**T**ool for **E**valuating **N**eonatal **D**istress in **E**xtended **R**eal-time.
 
 **Live: https://nncceducation-cpu.github.io/TENDER/**
 
@@ -102,8 +102,21 @@ behaviour facial tension item and codes the NFCS actions. Enabled only when you 
 locally with your own key in `.env.local`, never on the deployed site. It fails
 closed: a network error shows nothing rather than showing no pain.
 
-**Trend.** Scores over the session, the hash-chained audit log, a PDF session
-report, and a de-identified JSON export.
+**Trend.** One small multiple per instrument, each on its own axis, because
+N-PASS runs 0 to 13 and COMFORTneo 6 to 30 and sharing an axis would imply that a
+number means the same on both. Plus the hash-chained audit log and a PDF session
+report.
+
+**Raw data.** Two CSVs. Per-frame carries the raw activations, the coded actions,
+the geometric measures and the quality of every sample from the last coding run.
+Per-item carries one row per scale item scored, with whether it came from a
+clinician or a model, so a total can be recomputed under a different rule. This is
+what a validation study needs, and what lets anyone check a figure rather than
+take it on trust.
+
+**Overlay.** Every single-image reading draws its own measurements back onto the
+photograph and exports as a PNG. A mouth line that has landed on a nasogastric
+tube is obvious in a second and invisible in a table of numbers.
 
 **Protocol.** The version in force, the changelog, the full instrument library with
 caveats and references, and the open questions that need the protocol owner's

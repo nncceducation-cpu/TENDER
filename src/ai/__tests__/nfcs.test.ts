@@ -547,12 +547,22 @@ describe('describing stills with no reference at all', () => {
 });
 
 describe('reading a single image from geometry', () => {
+  const pt = (x = 0, y = 0) => ({ x, y });
+  const POINTS = {
+    leftEye: { top: pt(), bottom: pt(), outer: pt(), inner: pt(), brow: pt() },
+    rightEye: { top: pt(), bottom: pt(), outer: pt(), inner: pt(), brow: pt() },
+    mouth: { top: pt(), bottom: pt(), left: pt(), right: pt() },
+    face: { top: pt(), chin: pt() },
+    box: { x: 0, y: 0, w: 100, h: 100 },
+  };
+
   const measures = (over: Partial<Record<string, number>> = {}) => ({
     eyeAperture: 0.12,
     mouthOpening: 0.01,
     mouthWidth: 0.75,
     browToEye: 0.3,
     faceProportion: 1.6,
+    points: POINTS,
     ...over,
   });
 

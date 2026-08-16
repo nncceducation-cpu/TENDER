@@ -39,6 +39,16 @@ interface Pt {
 
 const dist = (a: Pt, b: Pt) => Math.hypot(a.x - b.x, a.y - b.y);
 
+/** The points the measures were taken between, in image pixels, for drawing. */
+export interface GeometryPoints {
+  leftEye: { top: Pt; bottom: Pt; outer: Pt; inner: Pt; brow: Pt };
+  rightEye: { top: Pt; bottom: Pt; outer: Pt; inner: Pt; brow: Pt };
+  mouth: { top: Pt; bottom: Pt; left: Pt; right: Pt };
+  face: { top: Pt; chin: Pt };
+  /** Bounding box of all landmarks, for framing the overlay. */
+  box: { x: number; y: number; w: number; h: number };
+}
+
 export interface GeometryMeasures {
   /**
    * Mean vertical eye aperture as a fraction of interocular distance. A relaxed
@@ -57,6 +67,8 @@ export interface GeometryMeasures {
   browToEye: number;
   /** Face height over interocular distance, reported so an implausible read can be spotted. */
   faceProportion: number;
+  /** Where each measure was taken. Present so an overlay can show its working. */
+  points: GeometryPoints;
 }
 
 export const measureGeometry = (
@@ -78,7 +90,33 @@ export const measureGeometry = (
   const leftAperture = dist(p(L_EYE.top), p(L_EYE.bottom));
   const rightAperture = dist(p(R_EYE.top), p(R_EYE.bottom));
 
+  const xs = lm.map((q) => q.x * imageWidth);
+  const ys = lm.map((q) => q.y * imageHeight);
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+
+  const points: GeometryPoints = {
+    leftEye: {
+      top: p(L_EYE.top),
+      bottom: p(L_EYE.bottom),
+      outer: p(L_EYE.outer),
+      inner: p(L_EYE.inner),
+      brow: p(L_EYE.brow),
+    },
+    rightEye: {
+      top: p(R_EYE.top),
+      bottom: p(R_EYE.bottom),
+      outer: p(R_EYE.outer),
+      inner: p(R_EYE.inner),
+      brow: p(R_EYE.brow),
+    },
+    mouth: { top: p(MOUTH.top), bottom: p(MOUTH.bottom), left: p(MOUTH.left), right: p(MOUTH.right) },
+    face: { top: p(FACE.top), chin: p(FACE.chin) },
+    box: { x: minX, y: minY, w: Math.max(...xs) - minX, h: Math.max(...ys) - minY },
+  };
+
   return {
+    points,
     eyeAperture: n((leftAperture + rightAperture) / 2),
     mouthOpening: n(dist(p(MOUTH.top), p(MOUTH.bottom))),
     mouthWidth: n(dist(p(MOUTH.left), p(MOUTH.right))),

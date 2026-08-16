@@ -14,7 +14,10 @@ import {
 import { describeCalibration, isSelfReferenced, SELF_REFERENCE_CAVEAT } from '../ai/nfcsFeatures';
 import { buildSuggestions } from '../ai/suggestions';
 import { useStore } from '../state/store';
-import { Button, Callout, Card, Stat } from './ui';
+import { Button, Callout, Card } from './ui';
+import { BarChart, HeroScore, PresenceRibbon } from './viz/Charts';
+import { FaceOverlay } from './viz/FaceOverlay';
+import type { RawFrameRow } from '../state/rawExport';
 import type { AiEvidence } from '../domain/types';
 
 interface Picked {
@@ -115,8 +118,10 @@ export const StillAnalysis = ({
   const selectedScale = useStore((s) => s.selectedScale);
   const setAiEvidence = useStore((s) => s.setAiEvidence);
   const setCalibration = useStore((s) => s.setCalibration);
+  const setRawFrames = useStore((s) => s.setRawFrames);
 
   const [description, setDescription] = useState<StillDescription[] | null>(null);
+  const urlByName = new Map(scoreImages.map((i) => [i.name, i.dataUrl]));
   const usingExisting = mode === 'reuse' && existing !== null;
 
   const run = async () => {
@@ -141,6 +146,18 @@ export const StillAnalysis = ({
           return;
         }
         setDescription(described);
+        setRawFrames(
+          described.map<RawFrameRow>((d) => ({
+            source: 'still',
+            sampleId: d.frame.name,
+            tMs: null,
+            faceFound: d.frame.faceFound,
+            quality: d.frame.quality,
+            activations: d.frame.activations,
+            geometry: d.assessment?.measures ?? null,
+            facialTension: d.assessment?.facialTension ?? null,
+          })),
+        );
         void audit.append(
           clinician || 'unattributed',
           'stills.described',
@@ -183,6 +200,19 @@ export const StillAnalysis = ({
 
       const coding = codeStills(scored, calibration, asSequence);
       setResult(coding);
+      setRawFrames(
+        coding.coded.map<RawFrameRow>(({ frame, actions }) => ({
+          source: 'still',
+          sampleId: frame.name,
+          tMs: null,
+          faceFound: frame.faceFound,
+          quality: frame.quality,
+          activations: frame.activations,
+          coded: actions,
+          geometry: frame.assessment?.measures ?? null,
+          facialTension: frame.assessment?.facialTension ?? null,
+        })),
+      );
 
       if (coding.summary) {
         const { suggestions, abstentions } = buildSuggestions(
@@ -429,44 +459,51 @@ export const StillAnalysis = ({
                 </p>
 
                 {d.assessment ? (
-                  <div className="mt-2 rounded-lg border border-slate-200 p-3 space-y-2">
-                    <div className="flex items-baseline gap-3 flex-wrap">
-                      <span className="text-[11px] uppercase tracking-wide font-semibold text-slate-500">
-                        COMFORT facial tension
-                      </span>
-                      <span className="text-2xl font-bold text-slate-800">
-                        Level {d.assessment.facialTension}
-                      </span>
-                      <span className="text-sm text-slate-600">{d.assessment.anchor}</span>
-                    </div>
+                  <div className="mt-2 space-y-3">
+                    {urlByName.get(d.frame.name) && (
+                      <FaceOverlay
+                        imageUrl={urlByName.get(d.frame.name)!}
+                        assessment={d.assessment}
+                        name={d.frame.name}
+                      />
+                    )}
 
-                    <table className="w-full text-sm">
-                      <tbody>
-                        {d.assessment.regions.map((r) => (
-                          <tr key={r.region} className="align-top">
-                            <td className="py-1 text-slate-700 w-20">{r.region}</td>
-                            <td className="py-1 w-32">
-                              <span className="inline-block h-1.5 rounded bg-amber-500 align-middle"
-                                style={{ width: `${Math.max(2, r.tension * 100)}%` }} />
-                            </td>
-                            <td className="py-1">
-                              <span
-                                className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
-                                  r.reliability === 'good'
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : r.reliability === 'moderate'
-                                      ? 'bg-slate-100 text-slate-600'
-                                      : 'bg-amber-100 text-amber-800'
-                                }`}
-                              >
-                                {r.reliability}
-                              </span>
-                              <span className="block text-xs text-slate-600 mt-0.5">{r.reading}</span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    <HeroScore
+                      label="COMFORT facial tension"
+                      value={d.assessment.facialTension}
+                      scale="5"
+                      severity={
+                        d.assessment.facialTension >= 5
+                          ? 'severe'
+                          : d.assessment.facialTension >= 4
+                            ? 'moderate'
+                            : d.assessment.facialTension >= 3
+                              ? 'mild'
+                              : 'none'
+                      }
+                      severityLabel={d.assessment.anchor}
+                    />
+
+                    <BarChart
+                      title="Where the tension is"
+                      maxLabel="fully tense for that region"
+                      caption="Weighted by how much each measure can be trusted, so the brow cannot carry the reading on its own."
+                      data={d.assessment.regions.map((r) => ({
+                        label: r.region,
+                        value: r.tension,
+                        display: `${(r.tension * 100).toFixed(0)}%`,
+                        note: r.reading,
+                        chip: {
+                          text: r.reliability,
+                          status:
+                            r.reliability === 'good'
+                              ? ('good' as const)
+                              : r.reliability === 'moderate'
+                                ? ('warning' as const)
+                                : ('serious' as const),
+                        },
+                      }))}
+                    />
 
                     <ul className="text-xs text-slate-600 list-disc list-inside space-y-0.5">
                       {d.assessment.caveats.map((c) => (
@@ -520,14 +557,43 @@ export const StillAnalysis = ({
         {result && (
           <div className="space-y-3 pt-2 border-t border-slate-200">
             {result.summary && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                <Stat label="Images coded" value={result.usableCount} />
-                <Stat
-                  label="NFCS-P-3 actions"
-                  value={`${result.summary.nfcsP3Sum}/${result.usableCount * 3}`}
+              <>
+                <HeroScore
+                  label="NFCS-P-3 facial activity"
+                  value={result.summary.nfcsP3Sum}
+                  scale={String(result.usableCount * 3)}
+                  severityLabel={`${result.usableCount} images coded`}
+                  severity={
+                    result.summary.nfcsP3Sum / Math.max(1, result.usableCount * 3) > 0.3
+                      ? 'moderate'
+                      : 'none'
+                  }
                 />
-                <Stat label="Mean quality" value={result.summary.meanQuality.toFixed(2)} />
-              </div>
+
+                <BarChart
+                  title="Proportion of images showing each action"
+                  maxLabel="present in every coded image"
+                  caption="These proportions are the quantity PIPP-R bands, which is why declaring the set a sequence is what unlocks the facial items."
+                  data={Object.entries(result.summary.proportionPresent)
+                    .filter(([, v]) => Number.isFinite(v))
+                    .map(([action, v]) => ({
+                      label: action.replace(/_/g, ' '),
+                      value: v,
+                      display: `${(v * 100).toFixed(0)}%`,
+                    }))}
+                />
+
+                <PresenceRibbon
+                  title="Image by image"
+                  unitLabel="image"
+                  caption="Each cell is one coded image, in the order supplied."
+                  rows={(['brow_bulge', 'eye_squeeze', 'nasolabial_furrow'] as const).map((a) => ({
+                    label: a.replace(/_/g, ' '),
+                    cells: result.coded.map((c) => Boolean(c.actions[a])),
+                    quality: result.coded.map((c) => c.frame.quality),
+                  }))}
+                />
+              </>
             )}
 
             <table className="w-full text-sm">
