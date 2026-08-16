@@ -294,3 +294,26 @@ describe('transparent index', () => {
     expect(new TransparentIndex().card.reportedPerformance).toMatch(/Unvalidated/);
   });
 });
+
+describe('clip sampling rate', () => {
+  it('keeps the requested rate for a short range', async () => {
+    const { effectiveFps } = await import('../clipAnalysis');
+    expect(effectiveFps(15, 20)).toBe(15);
+  });
+
+  it('reduces the rate rather than the range for a long clip', async () => {
+    const { effectiveFps, estimateFrames } = await import('../clipAnalysis');
+    // Two minutes at 15 fps would be 1800 samples, each a seek plus an inference.
+    const fps = effectiveFps(15, 120);
+    expect(fps).toBeLessThan(15);
+    expect(estimateFrames(15, 120)).toBeLessThanOrEqual(600);
+  });
+
+  it('holds the floor rather than the budget when they conflict', async () => {
+    const { effectiveFps, estimateFrames } = await import('../clipAnalysis');
+    // An hour cannot be sampled within the budget without falling below the
+    // floor, so the floor holds and the pass simply takes longer.
+    expect(effectiveFps(15, 3600)).toBe(4);
+    expect(estimateFrames(15, 3600)).toBeGreaterThan(600);
+  });
+});

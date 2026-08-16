@@ -8,6 +8,7 @@ import { applicableItems, scoreAssessment, IncompleteAssessmentError } from '../
 import { decideEscalation } from '../engine/protocolEngine';
 import { FacialCapture } from './FacialCapture';
 import { VisionAssist } from './VisionAssist';
+import { ClipAnalysis } from './ClipAnalysis';
 import type { PainConstruct, ScaleId, ScoredItem } from '../domain/types';
 
 /** How long a capture window stays a fair description of the infant. */
@@ -184,6 +185,7 @@ export const AssessScreen = () => {
       {(scale.items.some((i) => i.channel === 'facial') || scale.id === 'NFCS_P3') && (
         <>
           <FacialCapture />
+          <ClipAnalysis />
           <VisionAssist
             onFacialTension={
               items.some((i) => i.id === 'facial_tension')

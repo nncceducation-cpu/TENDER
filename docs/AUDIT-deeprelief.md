@@ -188,8 +188,11 @@ monitor.
   prints the instrument, the item-level scores, which items came from a model, the
   workings behind each total, the protocol version and the audit chain. It does
   not print a machine-generated treatment recommendation.
-- **Image upload for retrospective review**, which is genuinely useful for teaching
-  and for building an annotated set.
+- **Upload for retrospective review**, which is genuinely useful for teaching and
+  for building an annotated set. It was extended rather than copied: DeepRelief
+  could only upload to the cloud, so uploading meant transmitting. TENDER runs the
+  on-device coder over an uploaded clip, which needs no key, sends nothing, and
+  works on the public site.
 - **The five-level facial tension scale**, restored to its actual identity as the
   COMFORT behaviour item.
 - **The idea of a second opinion**, kept, but placed alongside the instrument

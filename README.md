@@ -72,6 +72,13 @@ number of steps to zero, and whether WAT-1 is indicated.
 and the cross-tolerance-reduced targets, the ratios used, and a warning when the
 derived breakthrough dose conflicts with the protocol's own bolus rule.
 
+**Score a recorded clip.** Upload a video and the same on-device coder walks it
+frame by frame. Choose a settled range to calibrate against and a range to score,
+and it produces the same NFCS coding the live path does. Nothing is uploaded, no
+key is needed, and it works on the public site and offline. Coding a file is also
+reproducible, which a live feed is not, so this is the route a validation study
+would use.
+
 **Cloud second opinion.** Optional, off by default, and the only part of TENDER
 that transmits anything. Send a single still to Gemini and it scores the COMFORT
 behaviour facial tension item and codes the NFCS actions. Enabled only when you run

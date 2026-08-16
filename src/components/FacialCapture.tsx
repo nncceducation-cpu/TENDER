@@ -324,8 +324,9 @@ export const FacialCapture = ({ onEvidence }: { onEvidence?: (e: AiEvidence) => 
             {fromDisk
               ? 'This page was opened directly from disk. Chrome will not grant camera access to a file:// origin, and the model files cannot be loaded from one either. Every other screen works normally here.'
               : 'The browser will only grant camera access in a secure context.'}{' '}
-            To use the facial coding layer, serve the application over <code>localhost</code>{' '}
-            with <code>npm run dev</code>, or over HTTPS on the unit network.
+            To use live capture, serve the application over <code>localhost</code> with{' '}
+            <code>npm run dev</code>, or over HTTPS on the unit network. Coding a recorded
+            clip needs no camera permission and works here.
           </Callout>
         )}
 
