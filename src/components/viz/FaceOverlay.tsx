@@ -144,13 +144,14 @@ export const FaceOverlay = ({
 
       // Interocular distance: the ruler everything else is measured against.
       line(ctx, p.leftEye.outer, p.rightEye.outer, INK.muted, 2 * scale);
-      // Centred on the ruler and lifted clear of it. Left-anchored at the
-      // midpoint, this box ran across the far eye and into the aperture label.
+      // Centred on the ruler and dropped below it. Above the line it collided
+      // with the brow label, which on a narrow face sits at almost the same
+      // height; the band between the eyes and the mouth is the clear space.
       label(
         ctx,
         'interocular = 1.00',
         (p.leftEye.outer.x + p.rightEye.outer.x) / 2,
-        Math.min(p.leftEye.outer.y, p.rightEye.outer.y) - 30 * scale,
+        Math.max(p.leftEye.outer.y, p.rightEye.outer.y) + 30 * scale,
         scale,
         'center',
       );

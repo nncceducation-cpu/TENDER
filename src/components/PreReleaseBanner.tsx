@@ -18,7 +18,7 @@ export const PreReleaseBanner = () => {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="w-full bg-red-900 text-red-50 text-xs py-1 px-4 text-center hover:bg-red-800 transition"
+        className="w-full rounded-lg bg-red-900 text-red-50 text-xs py-1.5 px-4 text-center hover:bg-red-800 transition mb-5"
       >
         Pre-release demonstration. Not for patient care. Click to read why.
       </button>
@@ -26,8 +26,8 @@ export const PreReleaseBanner = () => {
   }
 
   return (
-    <div className="bg-red-900 text-red-50">
-      <div className="max-w-5xl mx-auto px-4 py-3 flex gap-3 text-sm">
+    <div className="bg-red-900 text-red-50 rounded-lg mb-5">
+      <div className="px-4 py-3 flex gap-3 text-sm">
         <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
         <div className="space-y-2 flex-1">
           <p className="font-bold uppercase tracking-wide text-xs">

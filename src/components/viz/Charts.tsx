@@ -384,7 +384,8 @@ export const TrendSmallMultiples = ({ series }: { series: TrendSeries[] }) => (
 
           <div className="flex justify-between text-[11px] mt-1 pl-10" style={{ color: INK.muted }}>
             <span>{s.points[0]?.t}</span>
-            <span>{s.points.at(-1)?.t}</span>
+            {/* With a single point both ends are the same label, printed twice. */}
+            {s.points.length > 1 && <span>{s.points.at(-1)?.t}</span>}
           </div>
 
           {/*

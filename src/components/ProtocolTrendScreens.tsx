@@ -253,7 +253,7 @@ export const TrendScreen = () => {
               />
             )}
 
-            <table className="w-full text-sm [&_th]:px-3 [&_td]:px-3 [&_th:first-child]:pl-0 [&_td:first-child]:pl-0 [&_th:last-child]:pr-0 [&_td:last-child]:pr-0">
+            <div className="overflow-x-auto -mx-1 px-1"><table className="w-full text-sm min-w-[34rem] [&_th]:px-3 [&_td]:px-3 [&_th:first-child]:pl-0 [&_td:first-child]:pl-0 [&_th:last-child]:pr-0 [&_td:last-child]:pr-0">
               <thead>
                 <tr className="text-left text-xs uppercase text-slate-500 border-b border-slate-200">
                   <th className="py-2">Image</th>
@@ -289,7 +289,7 @@ export const TrendScreen = () => {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
 
             <p className="text-xs text-slate-500">
               These are readings, not assessments. They are never added to an
@@ -306,7 +306,7 @@ export const TrendScreen = () => {
           <div className="space-y-4">
             <TrendSmallMultiples series={series} />
 
-            <table className="w-full text-sm [&_th]:px-3 [&_td]:px-3 [&_th:first-child]:pl-0 [&_td:first-child]:pl-0 [&_th:last-child]:pr-0 [&_td:last-child]:pr-0">
+            <div className="overflow-x-auto -mx-1 px-1"><table className="w-full text-sm min-w-[34rem] [&_th]:px-3 [&_td]:px-3 [&_th:first-child]:pl-0 [&_td:first-child]:pl-0 [&_th:last-child]:pr-0 [&_td:last-child]:pr-0">
               <thead>
                 <tr className="text-left text-xs uppercase text-slate-500 border-b border-slate-200">
                   <th className="py-2">Time</th>
@@ -333,7 +333,7 @@ export const TrendScreen = () => {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         )}
       </Card>

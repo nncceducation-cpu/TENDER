@@ -14,7 +14,10 @@ import type { RawFrameRow } from './rawExport';
 import { PROTOCOL_VERSION } from '../data/protocol/ach';
 
 export type Screen =
+  | 'dashboard'
   | 'context'
+  | 'image'
+  | 'live'
   | 'assess'
   | 'orders'
   | 'wean'
@@ -60,6 +63,12 @@ interface AppState {
   calibration: InfantCalibration | null;
   latestAiEvidence: AiEvidence | null;
   /**
+   * A COMFORT facial tension level offered by the image route, waiting for the
+   * scoring screen. Held in the session rather than passed as a prop because the
+   * two are now separate screens.
+   */
+  proposedFacialTension: number | null;
+  /**
    * Per-sample rows from the most recent coding run, kept so they can be
    * exported. A summary nobody can recompute is a summary nobody should trust.
    */
@@ -76,6 +85,7 @@ interface AppState {
   clearFacialReadings: () => void;
   setCalibration: (c: InfantCalibration | null) => void;
   setAiEvidence: (e: AiEvidence | null) => void;
+  proposeFacialTension: (level: number | null) => void;
   setRawFrames: (rows: RawFrameRow[]) => void;
   reset: () => void;
   exportSession: () => string;
@@ -91,7 +101,7 @@ interface AppState {
  * a document to paste or attach, and the session itself is disposable.
  */
 export const useStore = create<AppState>((set, get) => ({
-  screen: 'context',
+  screen: 'dashboard',
   clinician: '',
   ctx: { ...EMPTY_CONTEXT },
   surgeryType: '',
@@ -108,6 +118,7 @@ export const useStore = create<AppState>((set, get) => ({
   facialReadings: [],
   calibration: null,
   latestAiEvidence: null,
+  proposedFacialTension: null,
   rawFrames: [],
 
   audit: new AuditLog(),
@@ -164,6 +175,8 @@ export const useStore = create<AppState>((set, get) => ({
 
   setAiEvidence: (latestAiEvidence) => set({ latestAiEvidence }),
 
+  proposeFacialTension: (proposedFacialTension) => set({ proposedFacialTension }),
+
   setRawFrames: (rawFrames) => set({ rawFrames }),
 
   reset: () =>
@@ -180,9 +193,10 @@ export const useStore = create<AppState>((set, get) => ({
       facialReadings: [],
       calibration: null,
       latestAiEvidence: null,
+      proposedFacialTension: null,
       rawFrames: [],
       audit: new AuditLog(),
-      screen: 'context',
+      screen: 'dashboard',
     }),
 
   exportSession: () => {

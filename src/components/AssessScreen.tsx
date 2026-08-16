@@ -6,10 +6,6 @@ import { SCALES } from '../data/scales';
 import { recommendScales } from '../engine/scaleSelector';
 import { applicableItems, scoreAssessment, IncompleteAssessmentError } from '../engine/scoring';
 import { countConsecutiveElevated, decideEscalation } from '../engine/protocolEngine';
-import { FacialCapture } from './FacialCapture';
-import { VisionAssist } from './VisionAssist';
-import { ClipAnalysis } from './ClipAnalysis';
-import { StillAnalysis } from './StillAnalysis';
 import type { PainConstruct, ScaleId, ScoredItem } from '../domain/types';
 
 /** How long a capture window stays a fair description of the infant. */
@@ -190,27 +186,32 @@ export const AssessScreen = () => {
         </Callout>
       ) : null}
 
-      {(scale.items.some((i) => i.channel === 'facial') || scale.id === 'NFCS_P3') && (
-        <>
-          <FacialCapture />
-          <ClipAnalysis />
-          <StillAnalysis
-            onProposeTension={
-              items.some((i) => i.id === 'facial_tension')
-                ? (level) =>
-                    setValues((v) => ({ ...v, facial_tension: { value: level, fromAi: true } }))
-                : undefined
-            }
-          />
-          <VisionAssist
-            onFacialTension={
-              items.some((i) => i.id === 'facial_tension')
-                ? (level) =>
-                    setValues((v) => ({ ...v, facial_tension: { value: level, fromAi: true } }))
-                : undefined
-            }
-          />
-        </>
+      {/*
+        Capture lives on its own screens now. What arrives here is whatever they
+        left in the session, offered rather than filled in.
+      */}
+      {s.proposedFacialTension !== null && items.some((i) => i.id === 'facial_tension') && (
+        <Callout tone="info" title={`A facial tension level of ${s.proposedFacialTension} is available`}>
+          <p>
+            Read from an image on the analysis screen. Nothing has been scored with it.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button
+              onClick={() => {
+                setValues((v) => ({
+                  ...v,
+                  facial_tension: { value: s.proposedFacialTension!, fromAi: true },
+                }));
+                s.proposeFacialTension(null);
+              }}
+            >
+              Use level {s.proposedFacialTension} for facial tension
+            </Button>
+            <Button variant="ghost" onClick={() => s.proposeFacialTension(null)}>
+              Dismiss
+            </Button>
+          </div>
+        </Callout>
       )}
 
       <Card title={`${scale.name} scoring`} icon={<Activity className="w-5 h-5 text-sky-700" />}>

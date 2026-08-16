@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Images, Loader2, ScanLine, Upload } from 'lucide-react';
+import { Images, Loader2, ScanLine, Search, Upload } from 'lucide-react';
 import { FaceLandmarkerService } from '../ai/faceLandmarker';
 import {
   analyseStills,
@@ -16,9 +16,10 @@ import { buildSuggestions } from '../ai/suggestions';
 import { useStore } from '../state/store';
 import { Button, Callout, Card } from './ui';
 import { BarChart, HeroScore, PresenceRibbon } from './viz/Charts';
-import { FaceOverlay } from './viz/FaceOverlay';
+import { StillReport } from './viz/StillReport';
 import type { RawFrameRow } from '../state/rawExport';
 import type { AiEvidence } from '../domain/types';
+import { INK } from './viz/tokens';
 
 interface Picked {
   name: string;
@@ -89,11 +90,7 @@ const DropZone = ({
  * infant establish the resting face, or an existing calibration from a clip or a
  * live session is reused.
  */
-export const StillAnalysis = ({
-  onProposeTension,
-}: {
-  onProposeTension?: (level: number) => void;
-}) => {
+export const StillAnalysis = () => {
   const serviceRef = useRef<FaceLandmarkerService | null>(null);
 
   const [baselineImages, setBaselineImages] = useState<Picked[]>([]);
@@ -120,6 +117,7 @@ export const StillAnalysis = ({
   const setCalibration = useStore((s) => s.setCalibration);
   const setRawFrames = useStore((s) => s.setRawFrames);
   const addFacialReadings = useStore((s) => s.addFacialReadings);
+  const onProposeTension = useStore((s) => s.proposeFacialTension);
 
   const [description, setDescription] = useState<StillDescription[] | null>(null);
   const urlByName = new Map(scoreImages.map((i) => [i.name, i.dataUrl]));
@@ -325,7 +323,7 @@ export const StillAnalysis = ({
           <p className="text-sm font-medium text-slate-700 mb-2">
             What establishes this infant's resting face?
           </p>
-          <div className="grid sm:grid-cols-2 gap-2">
+          <div className="grid gap-2">
             {(
               [
                 {
@@ -482,251 +480,183 @@ export const StillAnalysis = ({
           )}
         </div>
 
-        {error && (
-          <Callout tone="danger" title="Not coded">
-            {error}
-          </Callout>
-        )}
-
-        {description && (
-          <div className="space-y-3 pt-2 border-t border-slate-200">
-            <Callout tone="warn" title="Uncalibrated: read it, do not trend it">
-              No settled reference for this infant was supplied, so each level below
-              comes from facial geometry rather than from this infant's own resting
-              face. Individual NFCS actions are still not called present or absent,
-              because that does require a per-infant baseline.
+        {/*
+          Two columns, following the layout of the original app: what you are
+          feeding the tool on the left, what it made of it on the right. On a
+          narrow screen they stack, input first, which is also the order in which
+          the work happens.
+        */}
+        <div className="grid lg:grid-cols-2 gap-5 items-start">
+          <div className="space-y-4">
+          {error && (
+            <Callout tone="danger" title="Not coded">
+              {error}
             </Callout>
-            {description.map((d) => (
-              <div key={d.frame.name + d.frame.index} className="border-t border-slate-100 pt-3">
-                <p className="text-sm font-medium text-slate-800">
-                  {d.frame.name}
-                  <span className="ml-2 text-xs font-normal text-slate-500">
-                    quality {d.frame.quality.toFixed(2)}
-                    {d.frame.faceBoxPx !== null &&
-                      `, face ${Math.round(d.frame.faceBoxPx)} px`}
-                  </span>
-                </p>
+          )}
 
-                {/*
-                  These were computed and then never shown. A face too small to
-                  measure, a head turned past 30 degrees, or a level that moves
-                  when the image is resampled are the three things most likely to
-                  make the number below wrong, and all three were being kept from
-                  the person reading it.
-                */}
-                {d.frame.problems.length > 0 && (
-                  <ul className="mt-1 text-xs text-amber-800 list-disc list-inside space-y-0.5">
-                    {d.frame.problems.map((pr) => (
-                      <li key={pr}>{pr}</li>
-                    ))}
-                  </ul>
-                )}
-
-                {d.assessment ? (
-                  <div className="mt-2 space-y-3">
-                    {urlByName.get(d.frame.name) && (
-                      <FaceOverlay
-                        imageUrl={urlByName.get(d.frame.name)!}
-                        assessment={d.assessment}
-                        name={d.frame.name}
-                      />
-                    )}
-
-                    <HeroScore
-                      label="COMFORT facial tension"
-                      value={d.assessment.facialTension}
-                      scale="5"
-                      severity={
-                        d.assessment.facialTension >= 5
-                          ? 'severe'
-                          : d.assessment.facialTension >= 4
-                            ? 'moderate'
-                            : d.assessment.facialTension >= 3
-                              ? 'mild'
-                              : 'none'
-                      }
-                      severityLabel={d.assessment.anchor}
-                    />
-
-                    <BarChart
-                      title="Where the tension is"
-                      maxLabel="fully tense for that region"
-                      caption="Weighted by how much each measure can be trusted, so the brow cannot carry the reading on its own."
-                      data={d.assessment.regions.map((r) => ({
-                        label: r.region,
-                        value: r.tension,
-                        display: `${(r.tension * 100).toFixed(0)}%`,
-                        note: r.reading,
-                        chip: {
-                          text: r.reliability,
-                          status:
-                            r.reliability === 'good'
-                              ? ('good' as const)
-                              : r.reliability === 'moderate'
-                                ? ('warning' as const)
-                                : ('serious' as const),
-                        },
-                      }))}
-                    />
-
-                    <ul className="text-xs text-slate-600 list-disc list-inside space-y-0.5">
-                      {d.assessment.caveats.map((c) => (
-                        <li key={c}>{c}</li>
-                      ))}
-                    </ul>
-
-                    {onProposeTension && (
-                      <Button
-                        variant="ghost"
-                        onClick={() => onProposeTension(d.assessment!.facialTension)}
-                      >
-                        Propose level {d.assessment.facialTension} for COMFORTneo facial tension
-                      </Button>
-                    )}
-                  </div>
-                ) : (
-                  <p className="mt-1 text-sm text-slate-500">
-                    Landmarks were insufficient to measure this face geometrically.
+          </div>
+          <div className="space-y-4 lg:sticky lg:top-20">
+            {!description && !result && !busy && (
+              <div
+                className="rounded-xl border border-dashed grid place-items-center text-center p-10 min-h-[280px]"
+                style={{ borderColor: INK.grid }}
+              >
+                <div>
+                  <Search className="w-10 h-10 mx-auto mb-3" style={{ color: INK.baseline }} />
+                  <p className="text-sm" style={{ color: INK.muted }}>
+                    Add an image and run the coding to see the report.
                   </p>
-                )}
+                </div>
+              </div>
+            )}
 
-                <details className="mt-2 text-sm">
-                  <summary className="cursor-pointer text-slate-600 text-xs">
-                    Raw activations behind the coding
-                  </summary>
-                <table className="w-full text-sm mt-1">
-                  <tbody>
-                    {d.ranked.map(({ action, activation }) => (
-                      <tr key={action}>
-                        <td className="py-0.5 capitalize text-slate-700 w-56">
-                          {action.replace(/_/g, ' ')}
+            {busy && (
+              <div
+                className="rounded-xl border grid place-items-center text-center p-10 min-h-[280px]"
+                style={{ borderColor: INK.grid }}
+              >
+                <div>
+                  <Loader2
+                    className="w-9 h-9 mx-auto mb-3 animate-spin"
+                    style={{ color: INK.baseline }}
+                  />
+                  <p className="text-sm" style={{ color: INK.muted }}>
+                    Measuring on this device. Nothing is being uploaded.
+                  </p>
+                </div>
+              </div>
+            )}
+
+          {description && (
+            <div className="space-y-4">
+              <Callout tone="warn" title="Uncalibrated: read it, do not trend it">
+                No settled reference for this infant was supplied, so each level below
+                comes from facial geometry rather than from this infant's own resting
+                face. Individual NFCS actions are still not called present or absent,
+                because that does require a per-infant baseline.
+              </Callout>
+              {description.map((d) => (
+                <StillReport
+                  key={d.frame.name + d.frame.index}
+                  d={d}
+                  imageUrl={urlByName.get(d.frame.name)}
+                  onPropose={onProposeTension}
+                />
+              ))}
+            </div>
+          )}
+
+          {result && (
+            <div className="space-y-3 pt-2 border-t border-slate-200">
+              {result.summary && (
+                <>
+                  <HeroScore
+                    label="NFCS-P-3 facial activity"
+                    value={result.summary.nfcsP3Sum}
+                    scale={String(result.usableCount * 3)}
+                    severityLabel={`${result.usableCount} images coded`}
+                    severity={
+                      result.summary.nfcsP3Sum / Math.max(1, result.usableCount * 3) > 0.3
+                        ? 'moderate'
+                        : 'none'
+                    }
+                  />
+
+                  <BarChart
+                    title="Proportion of images showing each action"
+                    maxLabel="present in every coded image"
+                    caption="These proportions are the quantity PIPP-R bands, which is why declaring the set a sequence is what unlocks the facial items."
+                    data={Object.entries(result.summary.proportionPresent)
+                      .filter(([, v]) => Number.isFinite(v))
+                      .map(([action, v]) => ({
+                        label: action.replace(/_/g, ' '),
+                        value: v,
+                        display: `${(v * 100).toFixed(0)}%`,
+                      }))}
+                  />
+
+                  <PresenceRibbon
+                    title="Image by image"
+                    unitLabel="image"
+                    caption="Each cell is one coded image, in the order supplied."
+                    rows={(['brow_bulge', 'eye_squeeze', 'nasolabial_furrow'] as const).map((a) => ({
+                      label: a.replace(/_/g, ' '),
+                      cells: result.coded.map((c) => Boolean(c.actions[a])),
+                      quality: result.coded.map((c) => c.frame.quality),
+                    }))}
+                  />
+                </>
+              )}
+
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase text-slate-500 border-b border-slate-200">
+                    <th className="py-1">Image</th>
+                    <th className="py-1">Actions present</th>
+                    <th className="py-1 text-right">Quality</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.coded.map(({ frame, actions }) => {
+                    const present = Object.entries(actions)
+                      .filter(([, v]) => v)
+                      .map(([k]) => k.replace(/_/g, ' '));
+                    return (
+                      <tr key={frame.name + frame.index} className="border-b border-slate-100 align-top">
+                        <td className="py-2 text-slate-700 pr-2">{frame.name}</td>
+                        <td className="py-2">
+                          {present.length === 0 ? (
+                            <span className="text-slate-400">none above this infant's baseline</span>
+                          ) : (
+                            <span className="flex flex-wrap gap-1">
+                              {present.map((a) => (
+                                <span
+                                  key={a}
+                                  className="px-2 py-0.5 rounded-full text-xs bg-amber-50 border border-amber-200 text-amber-900"
+                                >
+                                  {a}
+                                </span>
+                              ))}
+                            </span>
+                          )}
                         </td>
-                        <td className="py-0.5">
-                          <span className="inline-block h-1.5 rounded bg-sky-500 align-middle"
-                            style={{ width: `${Math.min(100, activation * 100)}%` }} />
-                        </td>
-                        <td className="py-0.5 text-right tabular-nums text-slate-500 w-16">
-                          {activation.toFixed(3)}
+                        <td className="py-2 text-right tabular-nums text-slate-600">
+                          {frame.quality.toFixed(2)}
                         </td>
                       </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {result.skipped.length > 0 && (
+                <Callout tone="warn" title={`${result.skipped.length} image(s) not coded`}>
+                  <ul className="list-disc list-inside space-y-0.5">
+                    {result.skipped.map((s) => (
+                      <li key={s.name}>
+                        {s.name}: {s.reason}
+                      </li>
                     ))}
-                  </tbody>
-                </table>
-                </details>
-              </div>
-            ))}
+                  </ul>
+                </Callout>
+              )}
+
+              {result.summary ? (
+                <p className="text-sm text-slate-600">
+                  Suggestions from this sequence are now available on the scoring form
+                  below.
+                </p>
+              ) : (
+                <Callout tone="info">
+                  These images were not marked as a sequence, so no proportion was
+                  computed and nothing was suggested for the scale. The per-image coding
+                  above is the whole of what a set of unrelated stills supports.
+                </Callout>
+              )}
+            </div>
+          )}
           </div>
-        )}
-
-        {result && (
-          <div className="space-y-3 pt-2 border-t border-slate-200">
-            {result.summary && (
-              <>
-                <HeroScore
-                  label="NFCS-P-3 facial activity"
-                  value={result.summary.nfcsP3Sum}
-                  scale={String(result.usableCount * 3)}
-                  severityLabel={`${result.usableCount} images coded`}
-                  severity={
-                    result.summary.nfcsP3Sum / Math.max(1, result.usableCount * 3) > 0.3
-                      ? 'moderate'
-                      : 'none'
-                  }
-                />
-
-                <BarChart
-                  title="Proportion of images showing each action"
-                  maxLabel="present in every coded image"
-                  caption="These proportions are the quantity PIPP-R bands, which is why declaring the set a sequence is what unlocks the facial items."
-                  data={Object.entries(result.summary.proportionPresent)
-                    .filter(([, v]) => Number.isFinite(v))
-                    .map(([action, v]) => ({
-                      label: action.replace(/_/g, ' '),
-                      value: v,
-                      display: `${(v * 100).toFixed(0)}%`,
-                    }))}
-                />
-
-                <PresenceRibbon
-                  title="Image by image"
-                  unitLabel="image"
-                  caption="Each cell is one coded image, in the order supplied."
-                  rows={(['brow_bulge', 'eye_squeeze', 'nasolabial_furrow'] as const).map((a) => ({
-                    label: a.replace(/_/g, ' '),
-                    cells: result.coded.map((c) => Boolean(c.actions[a])),
-                    quality: result.coded.map((c) => c.frame.quality),
-                  }))}
-                />
-              </>
-            )}
-
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase text-slate-500 border-b border-slate-200">
-                  <th className="py-1">Image</th>
-                  <th className="py-1">Actions present</th>
-                  <th className="py-1 text-right">Quality</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.coded.map(({ frame, actions }) => {
-                  const present = Object.entries(actions)
-                    .filter(([, v]) => v)
-                    .map(([k]) => k.replace(/_/g, ' '));
-                  return (
-                    <tr key={frame.name + frame.index} className="border-b border-slate-100 align-top">
-                      <td className="py-2 text-slate-700 pr-2">{frame.name}</td>
-                      <td className="py-2">
-                        {present.length === 0 ? (
-                          <span className="text-slate-400">none above this infant's baseline</span>
-                        ) : (
-                          <span className="flex flex-wrap gap-1">
-                            {present.map((a) => (
-                              <span
-                                key={a}
-                                className="px-2 py-0.5 rounded-full text-xs bg-amber-50 border border-amber-200 text-amber-900"
-                              >
-                                {a}
-                              </span>
-                            ))}
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2 text-right tabular-nums text-slate-600">
-                        {frame.quality.toFixed(2)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-
-            {result.skipped.length > 0 && (
-              <Callout tone="warn" title={`${result.skipped.length} image(s) not coded`}>
-                <ul className="list-disc list-inside space-y-0.5">
-                  {result.skipped.map((s) => (
-                    <li key={s.name}>
-                      {s.name}: {s.reason}
-                    </li>
-                  ))}
-                </ul>
-              </Callout>
-            )}
-
-            {result.summary ? (
-              <p className="text-sm text-slate-600">
-                Suggestions from this sequence are now available on the scoring form
-                below.
-              </p>
-            ) : (
-              <Callout tone="info">
-                These images were not marked as a sequence, so no proportion was
-                computed and nothing was suggested for the scale. The per-image coding
-                above is the whole of what a set of unrelated stills supports.
-              </Callout>
-            )}
-          </div>
-        )}
+        </div>
       </div>
     </Card>
   );

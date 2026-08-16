@@ -14,11 +14,8 @@ import { Button, Callout, Card } from './ui';
  * should know that at the moment they press it, not from a paragraph in a
  * settings page.
  */
-export const VisionAssist = ({
-  onFacialTension,
-}: {
-  onFacialTension?: (level: number) => void;
-}) => {
+export const VisionAssist = () => {
+  const onFacialTension = useStore((s) => s.proposeFacialTension);
   const [image, setImage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<VisionAssessment | null>(null);
