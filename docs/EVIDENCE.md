@@ -321,6 +321,30 @@ scaled by 1.4826) for each action, and codes an action present when activation
 exceeds that infant's own baseline by k robust SDs, defaulting to 3. Without a
 baseline the extractor codes nothing rather than guessing.
 
+### When no settled reference exists
+
+Calibration against the infant's own resting face is the strongest option and it
+is not always available. A procedure clip may start mid-handling; a unit may have
+one photograph and no calm one.
+
+Two weaker routes are offered, both labelled as weaker.
+
+The material can reference itself: the median across everything supplied stands
+in for the resting face, with the median absolute deviation for its spread. This
+is the same robust estimator applied to a different window, and its weakness is
+directional. If the infant was distressed throughout, the median is a distressed
+face, thresholds sit too high, and actions go uncoded. The failure is toward
+under-reporting pain, which is stated wherever a self-referenced reading appears
+and travels with it into the export.
+
+With no reference at all, nothing is coded. The raw activations are shown, ordered
+within each face, and no action is called present or absent. An absolute threshold
+is the obvious alternative and it is not defensible: the blendshape head was
+trained overwhelmingly on adult faces and no neonatal cut-offs have been published
+for it, so any number would be invented. For a single photograph the cloud
+assessor is the better instrument, because COMFORT facial tension is a judgement
+about one moment and does not require a per-infant baseline.
+
 ### Where the model abstains
 
 Honest failure is a feature. TENDER declines to produce a number when:

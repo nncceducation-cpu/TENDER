@@ -113,7 +113,7 @@ export interface ActionBaseline {
  * count, not a duration, and describing it in seconds was misleading: eight
  * photographs were reported as "8 s of video".
  */
-export type CalibrationSource = 'live' | 'clip' | 'stills';
+export type CalibrationSource = 'live' | 'clip' | 'stills' | 'self';
 
 export interface InfantCalibration {
   localId: string;
@@ -130,10 +130,88 @@ export interface InfantCalibration {
 }
 
 /** One line describing the baseline, phrased for the source it came from. */
-export const describeCalibration = (c: InfantCalibration): string =>
-  c.source === 'stills'
-    ? `${c.baselineSamples} settled images`
-    : `${c.baselineSeconds.toFixed(0)} s of ${c.source === 'live' ? 'live video' : 'recorded video'}`;
+export const describeCalibration = (c: InfantCalibration): string => {
+  if (c.source === 'self') return `${c.baselineSamples} samples of the material itself`;
+  if (c.source === 'stills') return `${c.baselineSamples} settled images`;
+  return `${c.baselineSeconds.toFixed(0)} s of ${c.source === 'live' ? 'live video' : 'recorded video'}`;
+};
+
+/** True when no settled reference was supplied and the material referenced itself. */
+export const isSelfReferenced = (c: InfantCalibration): boolean => c.source === 'self';
+
+/**
+ * The warning that must travel with any self-referenced reading.
+ *
+ * Stated once, here, so it cannot drift between the clip panel, the stills panel
+ * and the exported record.
+ */
+export const SELF_REFERENCE_CAVEAT =
+  'No settled reference was supplied, so this infant\'s own median across the supplied material stands in for the resting face. That assumes the infant was not distressed throughout. If they were, the reference is a distressed face and every action will be under-reported. Treat these as relative readings within this material, not as scores comparable to another infant or another session.';
+
+/**
+ * Build a reference from the material itself rather than from a settled epoch.
+ *
+ * This is the answer to the common case where no calm footage exists: a single
+ * procedure clip, or a handful of photographs taken during handling. The median
+ * across everything supplied stands in for the resting face and the median
+ * absolute deviation for its spread, which is the same robust estimator the
+ * settled path uses, applied to a different window.
+ *
+ * It is weaker than a settled baseline in one specific and important way, and the
+ * weakness is directional. If the infant was distressed for most of the material,
+ * the median is a distressed face, the thresholds sit too high, and actions go
+ * uncoded. The failure is toward under-reporting pain, which is why every
+ * consumer of this carries SELF_REFERENCE_CAVEAT and why the settled path stays
+ * the default wherever settled material exists.
+ */
+export const selfReference = (
+  localId: string,
+  frames: { activations: Record<NfcsAction, number>; quality: number }[],
+  options: { k?: number; minSamples?: number } = {},
+): InfantCalibration | { error: string } => {
+  const k = options.k ?? DEFAULT_K;
+  const minSamples = options.minSamples ?? 5;
+  const usable = frames.filter((f) => f.quality >= 0.45);
+
+  if (usable.length === 0) {
+    return {
+      error:
+        frames.length === 0
+          ? 'No face was detected in the supplied material, so there is nothing to reference against.'
+          : 'A face was detected but never at usable quality, so no reference could be formed.',
+    };
+  }
+  if (usable.length < minSamples) {
+    return {
+      error: `Only ${usable.length} usable sample${usable.length === 1 ? '' : 's'} were found, and at least ${minSamples} are needed. A median cannot be estimated from fewer, so nothing can be thresholded against it.`,
+    };
+  }
+
+  const actions = Object.keys(usable[0].activations) as NfcsAction[];
+  const baselines: Partial<Record<NfcsAction, ActionBaseline>> = {};
+
+  for (const a of actions) {
+    if (UNAVAILABLE_ACTIONS.includes(a)) continue;
+    const xs = usable.map((f) => f.activations[a]).filter((x) => Number.isFinite(x));
+    if (xs.length === 0) continue;
+    const med = median(xs);
+    baselines[a] = { median: med, robustSd: mad(xs, med), samples: xs.length };
+  }
+
+  return {
+    localId,
+    createdAt: new Date().toISOString(),
+    source: 'self',
+    baselines,
+    k,
+    baselineSeconds: 0,
+    baselineSamples: usable.length,
+    notes: [
+      `Referenced against the median of ${usable.length} usable samples drawn from the material itself. An action is coded present at ${k} robust SD above that median.`,
+      SELF_REFERENCE_CAVEAT,
+    ],
+  };
+};
 
 const median = (xs: number[]): number => {
   const s = [...xs].sort((a, b) => a - b);

@@ -427,3 +427,102 @@ describe('describing a baseline honestly', () => {
     expect(c.baselineSamples).toBe(12);
   });
 });
+
+describe('self-referenced scoring, when no calm material exists', () => {
+  const set = (values: number[]) =>
+    values.map((v) => ({ activations: activations(v), quality: 0.9 }));
+
+  it('refuses a single sample, which cannot reference itself', async () => {
+    const { selfReference } = await import('../nfcsFeatures');
+    const r = selfReference('BED-1', set([0.5]), { minSamples: 5 });
+    expect('error' in r).toBe(true);
+    if ('error' in r) expect(r.error).toMatch(/at least 5 are needed/);
+  });
+
+  it('says when no face was found rather than blaming the count', async () => {
+    const { selfReference } = await import('../nfcsFeatures');
+    const r = selfReference('BED-1', [], {});
+    expect('error' in r).toBe(true);
+    if ('error' in r) expect(r.error).toMatch(/No face was detected/);
+  });
+
+  it('builds a reference from the median of the material', async () => {
+    const { selfReference } = await import('../nfcsFeatures');
+    const r = selfReference('BED-1', set([0.1, 0.12, 0.14, 0.5, 0.9, 0.11, 0.13]), {});
+    if ('error' in r) throw new Error(r.error);
+    expect(r.source).toBe('self');
+    expect(r.baselines.brow_bulge!.median).toBeCloseTo(0.13, 6);
+  });
+
+  it('always carries the under-reporting caveat', async () => {
+    const { selfReference, SELF_REFERENCE_CAVEAT, isSelfReferenced } = await import(
+      '../nfcsFeatures'
+    );
+    const r = selfReference('BED-1', set([0.1, 0.2, 0.3, 0.4, 0.5, 0.6]), {});
+    if ('error' in r) throw new Error(r.error);
+    expect(isSelfReferenced(r)).toBe(true);
+    expect(r.notes).toContain(SELF_REFERENCE_CAVEAT);
+    expect(SELF_REFERENCE_CAVEAT).toMatch(/under-reported/);
+  });
+
+  it('under-reports when the material is uniformly activated, as documented', async () => {
+    const { selfReference, codeFrame } = await import('../nfcsFeatures');
+    void codeFrame;
+    // Every sample high: the median is high too, so nothing exceeds it.
+    const r = selfReference('BED-1', set([0.85, 0.86, 0.87, 0.88, 0.86, 0.87]), {});
+    if ('error' in r) throw new Error(r.error);
+    const base = r.baselines.brow_bulge!;
+    const threshold = Math.max(base.median + r.k * base.robustSd, base.median + 0.05);
+    expect(0.87 > threshold).toBe(false);
+  });
+
+  it('describes itself as referencing the material, not a settled epoch', async () => {
+    const { selfReference, describeCalibration } = await import('../nfcsFeatures');
+    const r = selfReference('BED-1', set([0.1, 0.2, 0.3, 0.4, 0.5, 0.6]), {});
+    if ('error' in r) throw new Error(r.error);
+    expect(describeCalibration(r)).toMatch(/samples of the material itself/);
+  });
+});
+
+describe('describing stills with no reference at all', () => {
+  it('produces an ordering and no coding', async () => {
+    const { describeStills } = await import('../stillAnalysis');
+    const frame = {
+      index: 0,
+      name: 'one.jpg',
+      activations: { ...activations(0), brow_bulge: 0.8, eye_squeeze: 0.2 } as never,
+      quality: 0.9,
+      problems: [],
+      faceFound: true,
+    };
+    const [d] = describeStills([frame]);
+    expect(d.ranked[0].action).toBe('brow_bulge');
+    expect(d.ranked[0].activation).toBeCloseTo(0.8, 6);
+    // Nothing in the output claims presence or absence.
+    expect(Object.keys(d)).toEqual(['frame', 'ranked']);
+  });
+
+  it('omits actions it cannot measure', async () => {
+    const { describeStills } = await import('../stillAnalysis');
+    const [d] = describeStills([
+      {
+        index: 0,
+        name: 'one.jpg',
+        activations: activations(0.4),
+        quality: 0.9,
+        problems: [],
+        faceFound: true,
+      },
+    ]);
+    expect(d.ranked.some((r) => r.action === 'taut_tongue')).toBe(false);
+  });
+
+  it('skips images with no face', async () => {
+    const { describeStills } = await import('../stillAnalysis');
+    expect(
+      describeStills([
+        { index: 0, name: 'a', activations: {} as never, quality: 0, problems: [], faceFound: false },
+      ]),
+    ).toHaveLength(0);
+  });
+});

@@ -5,10 +5,13 @@ import {
   analyseStills,
   calibrateFromStills,
   codeStills,
+  describeStills,
+  selfReferenceFromStills,
   MIN_BASELINE_STILLS,
   type StillCodingResult,
+  type StillDescription,
 } from '../ai/stillAnalysis';
-import { describeCalibration } from '../ai/nfcsFeatures';
+import { describeCalibration, isSelfReferenced, SELF_REFERENCE_CAVEAT } from '../ai/nfcsFeatures';
 import { buildSuggestions } from '../ai/suggestions';
 import { useStore } from '../state/store';
 import { Button, Callout, Card, Stat } from './ui';
@@ -89,7 +92,13 @@ export const StillAnalysis = () => {
   const [baselineImages, setBaselineImages] = useState<Picked[]>([]);
   const [scoreImages, setScoreImages] = useState<Picked[]>([]);
   const [asSequence, setAsSequence] = useState(false);
-  const [reuseCalibration, setReuseCalibration] = useState(false);
+  /**
+   * How the resting face is established. Settled images are the strongest and the
+   * default; the others exist because in practice a calm photograph often does
+   * not exist, and refusing to look at the image at all is not the only honest
+   * response to that.
+   */
+  const [mode, setMode] = useState<'settled' | 'reuse' | 'self' | 'describe'>('settled');
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -103,21 +112,42 @@ export const StillAnalysis = () => {
   const setAiEvidence = useStore((s) => s.setAiEvidence);
   const setCalibration = useStore((s) => s.setCalibration);
 
-  const usingExisting = reuseCalibration && existing !== null;
+  const [description, setDescription] = useState<StillDescription[] | null>(null);
+  const usingExisting = mode === 'reuse' && existing !== null;
 
   const run = async () => {
     setBusy(true);
     setError(null);
     setResult(null);
+    setDescription(null);
     setProgress(0);
 
     try {
       serviceRef.current ??= new FaceLandmarkerService();
       await serviceRef.current.loadStill();
 
+      const scoredFirst = mode === 'self' || mode === 'describe' || usingExisting;
+
+      // Describe-only never establishes a reference and never codes anything.
+      if (mode === 'describe') {
+        const frames = await analyseStills(serviceRef.current, scoreImages, setProgress);
+        const described = describeStills(frames);
+        if (described.length === 0) {
+          setError('No face was detected in any of the supplied images.');
+          return;
+        }
+        setDescription(described);
+        void audit.append(
+          clinician || 'unattributed',
+          'stills.described',
+          `${described.length} still image(s) described without a reference. No coding was produced.`,
+        );
+        return;
+      }
+
       let calibration = usingExisting ? existing : null;
 
-      if (!calibration) {
+      if (!calibration && !scoredFirst) {
         const baselineFrames = await analyseStills(
           serviceRef.current,
           baselineImages,
@@ -133,8 +163,19 @@ export const StillAnalysis = () => {
       }
 
       const scored = await analyseStills(serviceRef.current, scoreImages, (f) =>
-        setProgress((usingExisting ? 0 : 0.5) + f * (usingExisting ? 1 : 0.5)),
+        setProgress((scoredFirst ? 0 : 0.5) + f * (scoredFirst ? 1 : 0.5)),
       );
+
+      if (!calibration) {
+        // Self-referenced: the images to score are also the reference.
+        const c = selfReferenceFromStills(ctx.localId || 'unidentified', scored);
+        if ('error' in c) {
+          setError(c.error);
+          return;
+        }
+        calibration = c;
+        setCalibration(c);
+      }
 
       const coding = codeStills(scored, calibration, asSequence);
       setResult(coding);
@@ -155,6 +196,7 @@ export const StillAnalysis = () => {
           abstentions: [
             ...abstentions,
             `Coded from ${coding.usableCount} still images treated as one sequence. Each image stands in for one coding unit, so proportions are per image rather than per second.`,
+            ...(isSelfReferenced(calibration) ? [SELF_REFERENCE_CAVEAT] : []),
           ],
         };
         setAiEvidence(evidence);
@@ -177,7 +219,10 @@ export const StillAnalysis = () => {
 
   const ready =
     scoreImages.length > 0 &&
-    (usingExisting || baselineImages.length >= MIN_BASELINE_STILLS);
+    (mode === 'describe' ||
+      usingExisting ||
+      (mode === 'self' && scoreImages.length >= MIN_BASELINE_STILLS) ||
+      (mode === 'settled' && baselineImages.length >= MIN_BASELINE_STILLS));
 
   return (
     <Card title="Score still images" icon={<Images className="w-5 h-5 text-sky-700" />}>
@@ -195,33 +240,85 @@ export const StillAnalysis = () => {
           quantity PIPP-R bands, so a burst does support the facial items.
         </Callout>
 
-        {existing && (
-          <label className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50">
-            <input
-              type="checkbox"
-              className="mt-1"
-              checked={reuseCalibration}
-              onChange={(e) => setReuseCalibration(e.target.checked)}
-            />
-            <span className="text-sm">
-              <span className="font-medium text-slate-800">
-                Reuse the existing baseline for {existing.localId}
-              </span>
-              <span className="block text-xs text-slate-600">
-                Recorded {new Date(existing.createdAt).toLocaleTimeString()} from{' '}
-                {describeCalibration(existing)}. Only valid if these images are the same
-                infant.
-              </span>
-            </span>
-          </label>
+        <div>
+          <p className="text-sm font-medium text-slate-700 mb-2">
+            What establishes this infant's resting face?
+          </p>
+          <div className="grid sm:grid-cols-2 gap-2">
+            {(
+              [
+                {
+                  id: 'settled',
+                  label: 'Settled baseline images',
+                  blurb: `At least ${MIN_BASELINE_STILLS} calm, unhandled photographs of the same infant. The strongest option.`,
+                  available: true,
+                },
+                {
+                  id: 'reuse',
+                  label: 'Reuse the existing baseline',
+                  blurb: existing
+                    ? `From ${describeCalibration(existing)} for ${existing.localId}. Only valid if these images are the same infant.`
+                    : 'No baseline has been recorded in this session yet.',
+                  available: existing !== null,
+                },
+                {
+                  id: 'self',
+                  label: 'Reference these images against themselves',
+                  blurb: `No calm photographs needed. Uses the median across the images you are scoring, so it needs at least ${MIN_BASELINE_STILLS} of them. Under-reports if the infant was distressed in all of them.`,
+                  available: true,
+                },
+                {
+                  id: 'describe',
+                  label: 'No reference: describe only',
+                  blurb:
+                    'Works on a single photograph. Reports the raw activations behind the coding, ordered within each face, and calls nothing present or absent.',
+                  available: true,
+                },
+              ] as const
+            ).map((m) => (
+              <button
+                key={m.id}
+                disabled={!m.available}
+                onClick={() => setMode(m.id)}
+                className={`text-left p-3 rounded-lg border transition ${
+                  mode === m.id
+                    ? 'border-sky-500 bg-sky-50 ring-1 ring-sky-300'
+                    : m.available
+                      ? 'border-slate-200 hover:bg-slate-50'
+                      : 'border-slate-200 bg-slate-50 opacity-50 cursor-not-allowed'
+                }`}
+              >
+                <span className="font-medium text-slate-800 text-sm">{m.label}</span>
+                <span className="block text-xs text-slate-600 mt-0.5">{m.blurb}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {mode === 'self' && (
+          <Callout tone="warn" title="Referencing against itself">
+            {SELF_REFERENCE_CAVEAT}
+          </Callout>
         )}
 
-        <div className="grid sm:grid-cols-2 gap-4">
+        {mode === 'describe' && (
+          <Callout tone="info" title="Nothing will be scored">
+            There is no honest way to threshold a single face without a reference. The
+            blendshape model was trained overwhelmingly on adult faces, and no neonatal
+            cut-offs have been published for it, so an absolute threshold would be
+            invented. You will get the raw activations and their ordering within each
+            face, which is a reading aid, not a measurement. For a single photograph the
+            cloud panel below is the better tool: the COMFORT facial tension item is a
+            judgement about one moment and does not need a per-infant baseline.
+          </Callout>
+        )}
+
+        <div className={`grid gap-4 ${mode === 'settled' ? 'sm:grid-cols-2' : ''}`}>
+          {mode === 'settled' && (
           <DropZone
             label="Settled baseline images"
             hint={`At least ${MIN_BASELINE_STILLS}, infant calm and unhandled`}
             count={baselineImages.length}
-            disabled={usingExisting}
             onPick={async (files) => {
               try {
                 setBaselineImages(await readFiles(files));
@@ -231,9 +328,14 @@ export const StillAnalysis = () => {
               }
             }}
           />
+          )}
           <DropZone
-            label="Images to score"
-            hint="One or many"
+            label={mode === 'describe' ? 'Images to describe' : 'Images to score'}
+            hint={
+              mode === 'self'
+                ? `At least ${MIN_BASELINE_STILLS}, since these are also the reference`
+                : 'One or many'
+            }
             count={scoreImages.length}
             onPick={async (files) => {
               try {
@@ -284,10 +386,17 @@ export const StillAnalysis = () => {
               Clear
             </Button>
           )}
-          {!ready && scoreImages.length > 0 && !usingExisting && (
+          {!ready && scoreImages.length > 0 && mode === 'settled' && (
             <span className="text-xs text-slate-500">
               {MIN_BASELINE_STILLS - baselineImages.length} more baseline image
               {MIN_BASELINE_STILLS - baselineImages.length === 1 ? '' : 's'} needed.
+            </span>
+          )}
+          {!ready && mode === 'self' && scoreImages.length > 0 && (
+            <span className="text-xs text-slate-500">
+              {MIN_BASELINE_STILLS - scoreImages.length} more image
+              {MIN_BASELINE_STILLS - scoreImages.length === 1 ? '' : 's'} needed, because
+              these are also the reference.
             </span>
           )}
         </div>
@@ -296,6 +405,44 @@ export const StillAnalysis = () => {
           <Callout tone="danger" title="Not coded">
             {error}
           </Callout>
+        )}
+
+        {description && (
+          <div className="space-y-3 pt-2 border-t border-slate-200">
+            <Callout tone="info" title="Descriptive only">
+              No action has been called present or absent, because nothing established
+              what this infant's resting face looks like. The values below are the raw
+              activations behind the coding, strongest first within each face.
+            </Callout>
+            {description.map((d) => (
+              <div key={d.frame.name + d.frame.index} className="border-t border-slate-100 pt-2">
+                <p className="text-sm font-medium text-slate-800">
+                  {d.frame.name}
+                  <span className="ml-2 text-xs font-normal text-slate-500">
+                    quality {d.frame.quality.toFixed(2)}
+                  </span>
+                </p>
+                <table className="w-full text-sm mt-1">
+                  <tbody>
+                    {d.ranked.map(({ action, activation }) => (
+                      <tr key={action}>
+                        <td className="py-0.5 capitalize text-slate-700 w-56">
+                          {action.replace(/_/g, ' ')}
+                        </td>
+                        <td className="py-0.5">
+                          <span className="inline-block h-1.5 rounded bg-sky-500 align-middle"
+                            style={{ width: `${Math.min(100, activation * 100)}%` }} />
+                        </td>
+                        <td className="py-0.5 text-right tabular-nums text-slate-500 w-16">
+                          {activation.toFixed(3)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
         )}
 
         {result && (

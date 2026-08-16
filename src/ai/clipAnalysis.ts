@@ -1,6 +1,6 @@
 import type { FaceLandmarkerService } from './faceLandmarker';
 import { assessFrameQuality } from './faceLandmarker';
-import { calibrate, rawActivations, summariseWindow } from './nfcsFeatures';
+import { calibrate, rawActivations, selfReference, summariseWindow } from './nfcsFeatures';
 import type { InfantCalibration } from './nfcsFeatures';
 import type { NfcsAction, NfcsFrame, NfcsWindowSummary } from '../domain/types';
 
@@ -154,18 +154,22 @@ export const analyseClip = async (
   video: HTMLVideoElement,
   ranges: {
     localId: string;
-    baseline: [number, number];
+    /** Omit when the clip contains no settled stretch to reference against. */
+    baseline: [number, number] | null;
     scoring: [number, number];
   },
   options: SampleOptions = {},
 ): Promise<ClipResult | ClipFailure> => {
-  const [bStart, bEnd] = ranges.baseline;
   const [sStart, sEnd] = ranges.scoring;
-
-  if (bEnd <= bStart) return { error: 'The baseline range is empty. Drag it to cover a settled part of the clip.' };
   if (sEnd <= sStart) return { error: 'The scoring range is empty.' };
 
-  const baselineSeconds = bEnd - bStart;
+  const selfReferenced = ranges.baseline === null;
+  const [bStart, bEnd] = ranges.baseline ?? [0, 0];
+  if (!selfReferenced && bEnd <= bStart) {
+    return { error: 'The baseline range is empty. Set it to cover a settled part of the clip, or switch to referencing the clip against itself.' };
+  }
+
+  const baselineSeconds = selfReferenced ? 0 : bEnd - bStart;
   const scoringSeconds = sEnd - sStart;
 
   const requested = options.fps ?? 15;
@@ -174,36 +178,52 @@ export const analyseClip = async (
     Math.round(baselineSeconds * effectiveFps(requested, baselineSeconds)),
   );
 
-  // Pass one: the settled range.
-  const baselineFrames = await sampleRange(service, video, bStart, bEnd, 0, {
-    ...options,
-    onProgress: (f) => options.onProgress?.(f * 0.5),
-  });
-
-  const calibration = calibrate(
-    ranges.localId,
-    baselineFrames.map((f) => ({ activations: f.activations, quality: f.quality })),
-    { elapsedSeconds: baselineSeconds, minSeconds: 10, source: 'clip' },
-  );
-  if ('error' in calibration) {
-    const found = baselineFrames.length / expectedBaselineFrames;
-    return {
-      error:
-        found < 0.5
-          ? `${calibration.error} A face was found in only ${Math.round(found * 100)}% of the sampled baseline frames.`
-          : calibration.error,
-    };
-  }
-
-  // Pass two: the range to be scored, coded against that baseline.
+  // Pass one: the settled range, when there is one.
+  let calibration: InfantCalibration | null = null;
   const expectedScoringFrames = Math.max(
     1,
     Math.round(scoringSeconds * effectiveFps(requested, scoringSeconds)),
   );
+
+  if (!selfReferenced) {
+    const baselineFrames = await sampleRange(service, video, bStart, bEnd, 0, {
+      ...options,
+      onProgress: (f) => options.onProgress?.(f * 0.5),
+    });
+
+    const c = calibrate(
+      ranges.localId,
+      baselineFrames.map((f) => ({ activations: f.activations, quality: f.quality })),
+      { elapsedSeconds: baselineSeconds, minSeconds: 10, source: 'clip' },
+    );
+    if ('error' in c) {
+      const found = baselineFrames.length / expectedBaselineFrames;
+      return {
+        error:
+          found < 0.5
+            ? `${c.error} A face was found in only ${Math.round(found * 100)}% of the sampled baseline frames.`
+            : c.error,
+      };
+    }
+    calibration = c;
+  }
+
+  // Pass two: the range to be scored.
   const scoringFrames = await sampleRange(service, video, sStart, sEnd, 1_000_000, {
     ...options,
-    onProgress: (f) => options.onProgress?.(0.5 + f * 0.5),
+    onProgress: (f) => options.onProgress?.((selfReferenced ? 0 : 0.5) + f * (selfReferenced ? 1 : 0.5)),
   });
+
+  if (selfReferenced) {
+    const c = selfReference(
+      ranges.localId,
+      scoringFrames.map((f) => ({ activations: f.activations, quality: f.quality })),
+    );
+    if ('error' in c) return { error: c.error };
+    calibration = c;
+  }
+
+  if (!calibration) return { error: 'No reference could be established for this clip.' };
 
   // Activations are already computed, so the frames are thresholded directly
   // rather than pushed back through the landmarker a second time.

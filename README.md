@@ -74,17 +74,24 @@ derived breakthrough dose conflicts with the protocol's own bolus rule.
 
 **Score a recorded clip.** Upload a video and the same on-device coder walks it
 frame by frame. Choose a settled range to calibrate against and a range to score,
-and it produces the same NFCS coding the live path does. Nothing is uploaded, no
-key is needed, and it works on the public site and offline. Coding a file is also
+and it produces the same NFCS coding the live path does. A clip with no settled
+stretch, a procedure recording that starts mid-handling, can be referenced against
+itself instead. Nothing is uploaded, no key is needed, and it works on the public
+site and offline. Coding a file is also
 reproducible, which a live feed is not, so this is the route a validation study
 would use.
 
-**Score still images.** Upload settled images of the infant to calibrate against
-and images to code. Each one reports which NFCS actions are present above that
-infant's own resting face. A single photograph cannot produce an epoch score,
-because NFCS sums per-second coding across a window, but a set of images sampled
-from one period can: the proportion showing each action is the quantity PIPP-R
-bands. On device, no key, works on the public site.
+**Score still images.** Four ways to establish the resting face an action is
+measured against, in descending order of strength: settled photographs of the
+infant, a baseline already recorded this session, the median of the images being
+scored, or none at all. The last two exist because a calm photograph often does
+not, and refusing to look is not the only honest response to that. Referencing
+material against itself under-reports if the infant was distressed throughout,
+and says so. With no reference the tool describes rather than scores: raw
+activations, ordered within each face, nothing called present or absent. A single
+photograph cannot produce an epoch score in any mode, because NFCS sums
+per-second coding across a window; a set sampled from one period can, since the
+proportion showing each action is the quantity PIPP-R bands.
 
 **Cloud second opinion.** Optional, off by default, and the only part of TENDER
 that transmits anything. Send a single still to Gemini and it scores the COMFORT

@@ -1,6 +1,6 @@
 import type { FaceLandmarkerService } from './faceLandmarker';
 import { assessFrameQuality } from './faceLandmarker';
-import { calibrate, rawActivations, summariseWindow } from './nfcsFeatures';
+import { calibrate, rawActivations, selfReference, summariseWindow } from './nfcsFeatures';
 import type { InfantCalibration } from './nfcsFeatures';
 import type { NfcsAction, NfcsFrame, NfcsWindowSummary } from '../domain/types';
 
@@ -107,6 +107,23 @@ export const calibrateFromStills = (
   );
 };
 
+/**
+ * Reference a set of images against their own median, for when no calm
+ * photographs of the infant exist. Requires enough images that a median means
+ * something; a single photograph cannot reference itself.
+ */
+export const selfReferenceFromStills = (
+  localId: string,
+  frames: StillFrame[],
+): InfantCalibration | { error: string } =>
+  selfReference(
+    localId,
+    frames
+      .filter((f) => f.faceFound)
+      .map((f) => ({ activations: f.activations, quality: f.quality })),
+    { minSamples: MIN_BASELINE_STILLS },
+  );
+
 export interface StillCodingResult {
   /** Per-image action coding. */
   coded: { frame: StillFrame; actions: Record<NfcsAction, boolean> }[];
@@ -118,6 +135,38 @@ export interface StillCodingResult {
   usableCount: number;
   skipped: { name: string; reason: string }[];
 }
+
+export interface StillDescription {
+  frame: StillFrame;
+  /** Actions ordered by raw activation, strongest first. Not a coding. */
+  ranked: { action: NfcsAction; activation: number }[];
+}
+
+/**
+ * Describe images with no reference of any kind.
+ *
+ * This is the one image, no calm photograph case. Nothing here is a score. The
+ * raw activations behind the coding are reported, ordered within each face, so a
+ * clinician can see which actions the extractor is responding to and judge for
+ * themselves whether that matches what they see.
+ *
+ * There is no honest way to threshold these. The blendshape model was trained
+ * overwhelmingly on adult faces, so an absolute cut-off calibrated on adults says
+ * nothing dependable about a 27-week infant, and no neonatal cut-offs have been
+ * published for it. Inventing one and printing it beside a dose calculator is
+ * exactly the failure this application was rebuilt to remove. So the numbers are
+ * shown, the ordering is shown, and no action is called present or absent.
+ */
+export const describeStills = (frames: StillFrame[]): StillDescription[] =>
+  frames
+    .filter((f) => f.faceFound)
+    .map((frame) => ({
+      frame,
+      ranked: (Object.keys(frame.activations) as NfcsAction[])
+        .filter((a) => Number.isFinite(frame.activations[a]))
+        .map((action) => ({ action, activation: frame.activations[action] }))
+        .sort((a, b) => b.activation - a.activation),
+    }));
 
 export const codeStills = (
   frames: StillFrame[],

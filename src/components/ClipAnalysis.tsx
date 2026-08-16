@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { FileVideo, Loader2, ScanLine, Upload } from 'lucide-react';
 import { FaceLandmarkerService } from '../ai/faceLandmarker';
 import { analyseClip, estimateFrames, type ClipResult } from '../ai/clipAnalysis';
+import { isSelfReferenced, SELF_REFERENCE_CAVEAT } from '../ai/nfcsFeatures';
 import { buildSuggestions } from '../ai/suggestions';
 import { TransparentIndex } from '../ai/painModel';
 import { useStore } from '../state/store';
@@ -26,6 +27,8 @@ export const ClipAnalysis = () => {
   const [duration, setDuration] = useState(0);
   const [baseline, setBaseline] = useState<[number, number]>([0, 10]);
   const [scoring, setScoring] = useState<[number, number]>([10, 30]);
+  /** True when the clip has no settled stretch and must reference itself. */
+  const [selfReferenced, setSelfReferenced] = useState(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -91,7 +94,11 @@ export const ClipAnalysis = () => {
       const r = await analyseClip(
         serviceRef.current,
         video,
-        { localId: ctx.localId || 'unidentified', baseline, scoring },
+        {
+          localId: ctx.localId || 'unidentified',
+          baseline: selfReferenced ? null : baseline,
+          scoring,
+        },
         { fps: 15, onProgress: setProgress, signal: abortRef.current.signal },
       );
 
@@ -120,7 +127,10 @@ export const ClipAnalysis = () => {
         abstentions: [
           ...abstentions,
           ...index.abstentions,
-          `Coded from a recorded clip: ${r.baselineSeconds.toFixed(0)} s baseline, ${r.scoringSeconds.toFixed(0)} s scored.`,
+          isSelfReferenced(r.calibration)
+            ? `Coded from a recorded clip with no settled baseline: ${r.scoringSeconds.toFixed(0)} s scored, referenced against itself.`
+            : `Coded from a recorded clip: ${r.baselineSeconds.toFixed(0)} s baseline, ${r.scoringSeconds.toFixed(0)} s scored.`,
+          ...(isSelfReferenced(r.calibration) ? [SELF_REFERENCE_CAVEAT] : []),
         ],
       };
       setAiEvidence(evidence);
@@ -145,7 +155,7 @@ export const ClipAnalysis = () => {
    * many are coming rather than leaving someone watching a progress bar wondering.
    */
   const plannedFrames =
-    estimateFrames(15, Math.max(0, baseline[1] - baseline[0])) +
+    (selfReferenced ? 0 : estimateFrames(15, Math.max(0, baseline[1] - baseline[0]))) +
     estimateFrames(15, Math.max(0, scoring[1] - scoring[0]));
   const longJob = plannedFrames > 900;
 
@@ -190,7 +200,31 @@ export const ClipAnalysis = () => {
 
         {url && duration > 0 && (
           <>
-            <div className="grid sm:grid-cols-2 gap-4">
+            <label
+              className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition ${
+                selfReferenced ? 'border-amber-300 bg-amber-50' : 'border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={selfReferenced}
+                onChange={(e) => setSelfReferenced(e.target.checked)}
+              />
+              <span className="text-sm">
+                <span className="font-medium text-slate-800">
+                  This clip has no settled stretch. Reference it against itself.
+                </span>
+                <span className="block text-xs text-slate-600 mt-0.5">
+                  The infant's own median across the scored range stands in for the
+                  resting face. Use this for a procedure clip that starts mid-handling.
+                  If the infant was distressed throughout, the reference is a distressed
+                  face and actions will be under-reported.
+                </span>
+              </span>
+            </label>
+
+            <div className={`grid sm:grid-cols-2 gap-4 ${selfReferenced ? 'opacity-50' : ''}`}>
               <Field
                 label={`Settled baseline: ${baseline[0].toFixed(1)} to ${baseline[1].toFixed(1)} s`}
                 hint="Pick seconds where the infant is calm and unhandled. At least 10 s."
@@ -202,6 +236,7 @@ export const ClipAnalysis = () => {
                     min={0}
                     max={duration}
                     className={inputClass}
+                    disabled={selfReferenced}
                     value={baseline[0]}
                     onChange={(e) => setBaseline([clamp(Number(e.target.value)), baseline[1]])}
                   />
@@ -211,6 +246,7 @@ export const ClipAnalysis = () => {
                     min={0}
                     max={duration}
                     className={inputClass}
+                    disabled={selfReferenced}
                     value={baseline[1]}
                     onChange={(e) => setBaseline([baseline[0], clamp(Number(e.target.value))])}
                   />
@@ -322,6 +358,12 @@ export const ClipAnalysis = () => {
                 ))}
               </tbody>
             </table>
+
+            {isSelfReferenced(result.calibration) && (
+              <Callout tone="warn" title="Referenced against itself">
+                {SELF_REFERENCE_CAVEAT}
+              </Callout>
+            )}
 
             <p className="text-sm text-slate-600">
               Suggestions from this clip are now available on the scoring form below.
