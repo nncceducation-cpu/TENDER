@@ -267,11 +267,22 @@ export const FaceOverlay = ({
 
   return (
     <div className="space-y-2">
-      <canvas
-        ref={canvasRef}
-        className="w-full rounded-lg border"
+      {/*
+        The canvas is sized to the image's own pixels so the exported PNG is full
+        resolution. Displayed, that is the wrong size: a 4000px phone photo filled
+        the panel and pushed the charts below the fold. CSS caps the drawn size and
+        letterboxes it, which changes nothing about what `toBlob` writes out.
+      */}
+      <div
+        className="rounded-lg border grid place-items-center overflow-hidden"
         style={{ borderColor: INK.grid, background: INK.track }}
-      />
+      >
+        <canvas
+          ref={canvasRef}
+          className="max-w-full max-h-[420px] w-auto h-auto"
+          style={{ objectFit: 'contain' }}
+        />
+      </div>
       {error && <p className="text-xs text-red-700">{error}</p>}
       <div className="flex gap-2">
         <Button variant="ghost" onClick={() => setShowOverlay((v) => !v)}>

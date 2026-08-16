@@ -272,3 +272,36 @@ export interface AuditEntry {
   prevHash: string;
   hash: string;
 }
+
+/**
+ * A facial tension reading taken from an image or a clip frame.
+ *
+ * Kept as its own record rather than folded into `Assessment`, deliberately. An
+ * Assessment is a completed instrument with a total that means something because
+ * the instrument was validated. A reading is one number off one face, sometimes
+ * without any reference for that infant at all. Merging the two would let an
+ * uncalibrated geometric estimate inherit the authority of a scored N-PASS, which
+ * is the exact failure this application exists to avoid.
+ *
+ * Separate record, separate axis, separate column in the export, and the
+ * `calibrated` flag travels with every one of them.
+ */
+export interface FacialReading {
+  at: string;
+  /** Filename, or a clip timestamp. */
+  label: string;
+  origin: 'still' | 'clip' | 'live';
+  /** COMFORT behaviour facial tension, 1 to 5. */
+  facialTension: number;
+  anchor: string;
+  /** Continuous weighted tension behind the level, 0 to 1. */
+  overallTension: number;
+  quality: number;
+  /**
+   * False when no settled reference for this infant established what its resting
+   * face looks like. An uncalibrated reading is comparable to nothing, including
+   * to the same infant an hour later.
+   */
+  calibrated: boolean;
+  scoredBy: string;
+}

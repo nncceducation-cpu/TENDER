@@ -255,6 +255,12 @@ export interface TrendSeries {
   points: TrendPoint[];
   /** Threshold lines worth drawing, such as an escalation cut-off. */
   thresholds?: { at: number; label: string }[];
+  /**
+   * What one point is. Defaults to "assessment", which is wrong for a series of
+   * readings taken off photographs, and calling those assessments in the caption
+   * is exactly the conflation the rest of the interface works to prevent.
+   */
+  unitNoun?: string;
 }
 
 /**
@@ -285,7 +291,7 @@ export const TrendSmallMultiples = ({ series }: { series: TrendSeries[] }) => (
         <Figure
           key={s.instrument}
           title={s.instrument}
-          caption={`Plotted across the instrument's full range, ${s.min} to ${s.max}, so a score is shown against what the instrument can express rather than against the other scores. ${s.points.length} assessment${s.points.length === 1 ? '' : 's'} this session.`}
+          caption={`Plotted across the full range, ${s.min} to ${s.max}, so a value is shown against what the measure can express rather than against the other values. ${s.points.length} ${s.unitNoun ?? 'assessment'}${s.points.length === 1 ? '' : 's'} this session.`}
           table={s.points.map((p) => [
             `${p.t}${p.label ? ` — ${p.label}` : ''}`,
             String(p.value),

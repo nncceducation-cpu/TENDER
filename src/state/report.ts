@@ -1,5 +1,5 @@
 import type { jsPDF } from 'jspdf';
-import type { Assessment, AuditEntry, PatientContext } from '../domain/types';
+import type { Assessment, AuditEntry, FacialReading, PatientContext } from '../domain/types';
 import { PROTOCOL_VERSION } from '../data/protocol/ach';
 import { SCALES } from '../data/scales';
 
@@ -22,6 +22,8 @@ interface ReportInput {
   ctx: PatientContext;
   clinician: string;
   assessments: Assessment[];
+  /** Optional: absent in older callers and in the tests. */
+  facialReadings?: FacialReading[];
   audit: readonly AuditEntry[];
 }
 
@@ -197,6 +199,34 @@ export const buildSessionReport = async (input: ReportInput): Promise<jsPDF> => 
       for (const r of s.references) muted(r.citation, 3);
       y += 3;
     }
+  }
+
+  // Facial tension readings
+  const readings = input.facialReadings ?? [];
+  if (readings.length > 0) {
+    heading(`Facial tension readings (${readings.length})`);
+    muted(
+      'Read from images by facial geometry. These are not assessments. No reading below was added to any instrument total, and a reading marked uncalibrated had no settled reference for this infant, so it describes the photograph rather than a change in the infant.',
+    );
+    y += 2;
+
+    for (const r of readings) {
+      need(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(...SLATE);
+      doc.text(`${r.label}: COMFORT facial tension ${r.facialTension} of 5`, M, y);
+      y += 5;
+      body(r.anchor, 3);
+      muted(
+        `Weighted tension ${(r.overallTension * 100).toFixed(0)}%, frame quality ${r.quality.toFixed(2)}, reference ${
+          r.calibrated ? 'settled baseline for this infant' : 'NONE (uncalibrated)'
+        }, read by ${r.scoredBy} at ${new Date(r.at).toLocaleTimeString()}.`,
+        3,
+      );
+      y += 2;
+    }
+    y += 2;
   }
 
   // Audit

@@ -1,11 +1,16 @@
-import { Database, Download, FileText, FileWarning, LineChart, ShieldCheck } from 'lucide-react';
+import {
+  Database, Download, FileText, FileWarning, LineChart, ScanFace, ShieldCheck,
+} from 'lucide-react';
 import { useStore } from '../state/store';
 import { Button, Callout, Card, Stat } from './ui';
 import { PROTOCOL_VERSION, REVIEW_FLAGS } from '../data/protocol/ach';
 import { PAIN_SCALES, WAT_1 } from '../data/scales';
 import { buildSessionReport } from '../state/report';
-import { assessmentsToCsv, downloadText, framesToCsv } from '../state/rawExport';
-import { TrendSmallMultiples, type TrendSeries } from './viz/Charts';
+import {
+  assessmentsToCsv, downloadText, framesToCsv, readingsToCsv,
+} from '../state/rawExport';
+import { BarChart, HeroScore, TrendSmallMultiples, type TrendSeries } from './viz/Charts';
+import type { Severity } from './viz/tokens';
 import { SCALES } from '../data/scales';
 
 export const ProtocolScreen = () => (
@@ -108,6 +113,7 @@ export const TrendScreen = () => {
       ctx: s.ctx,
       clinician: s.clinician,
       assessments,
+      facialReadings: s.facialReadings,
       audit: s.audit.all(),
     });
     doc.save(`tender-report-${s.ctx.localId || 'unidentified'}-${Date.now()}.pdf`);
@@ -117,6 +123,12 @@ export const TrendScreen = () => {
 
   const exportFrames = () =>
     downloadText(`tender-frames-${stamp()}.csv`, framesToCsv(s.rawFrames));
+
+  const exportReadings = () =>
+    downloadText(
+      `tender-facial-readings-${stamp()}.csv`,
+      readingsToCsv(s.facialReadings, { localId: s.ctx.localId }),
+    );
 
   const exportItems = () =>
     downloadText(
@@ -149,8 +161,123 @@ export const TrendScreen = () => {
     return { instrument: `${scale.name} — ${scale.fullName}`, min: scale.range.min, max: scale.range.max, points, thresholds };
   });
 
+  /**
+   * Facial tension gets its own axis and its own card.
+   *
+   * It runs 1 to 5 and an N-PASS runs -10 to 13, so they could not share a plot
+   * even if it were sound to put them side by side, which it is not: one is a
+   * scored instrument and one is a reading off a photograph.
+   */
+  const readings = s.facialReadings;
+  const anyUncalibrated = readings.some((r) => !r.calibrated);
+  const tensionSeverity = (level: number): Severity =>
+    level >= 5 ? 'severe' : level >= 4 ? 'moderate' : level >= 3 ? 'mild' : 'none';
+
+  const tensionSeries: TrendSeries[] = readings.length
+    ? [
+        {
+          instrument: 'COMFORT facial tension — read from images',
+          min: 1,
+          max: 5,
+          points: readings.map((r) => ({
+            t: r.label,
+            value: r.facialTension,
+            severity: tensionSeverity(r.facialTension),
+            label: r.anchor,
+          })),
+          thresholds: [
+            { at: 3, label: 'tension in some facial muscles' },
+            { at: 4, label: 'tension throughout' },
+          ],
+          unitNoun: 'reading',
+        },
+      ]
+    : [];
+
+  const latestReading = readings.at(-1);
+
   return (
     <div className="space-y-5">
+      {readings.length > 0 && (
+        <Card
+          title="Facial tension read from images"
+          icon={<ScanFace className="w-5 h-5 text-sky-700" />}
+        >
+          <div className="space-y-4">
+            {anyUncalibrated && (
+              <Callout tone="warn" title="Some of these are uncalibrated">
+                A reading marked uncalibrated came from facial geometry with no
+                settled reference for this infant. It measures the photograph. Read
+                each one on its own; the line between them shows what was recorded,
+                not a change in the infant.
+              </Callout>
+            )}
+
+            {latestReading && (
+              <HeroScore
+                label="Most recent reading"
+                value={latestReading.facialTension}
+                scale="5"
+                severity={tensionSeverity(latestReading.facialTension)}
+                severityLabel={latestReading.anchor}
+              />
+            )}
+
+            <TrendSmallMultiples series={tensionSeries} />
+
+            {readings.length > 1 && (
+              <BarChart
+                title="Underlying tension, image by image"
+                maxLabel="fully tense"
+                caption="The continuous weighted measure behind each level, so two images that both landed on level 3 can still be told apart."
+                data={readings.map((r) => ({
+                  label: r.label,
+                  value: r.overallTension,
+                  display: `${(r.overallTension * 100).toFixed(0)}%`,
+                  note: `level ${r.facialTension}, quality ${r.quality.toFixed(2)}`,
+                  chip: {
+                    text: r.calibrated ? 'referenced' : 'uncalibrated',
+                    status: r.calibrated ? ('good' as const) : ('warning' as const),
+                  },
+                }))}
+              />
+            )}
+
+            <table className="w-full text-sm [&_th]:px-3 [&_td]:px-3 [&_th:first-child]:pl-0 [&_td:first-child]:pl-0 [&_th:last-child]:pr-0 [&_td:last-child]:pr-0">
+              <thead>
+                <tr className="text-left text-xs uppercase text-slate-500 border-b border-slate-200">
+                  <th className="py-2">Image</th>
+                  <th className="py-2 text-right">Level</th>
+                  <th className="py-2">Anchor</th>
+                  <th className="py-2 text-right">Quality</th>
+                  <th className="py-2">Reference</th>
+                </tr>
+              </thead>
+              <tbody>
+                {readings.map((r, i) => (
+                  <tr key={r.label + i} className="border-b border-slate-100">
+                    <td className="py-2 text-slate-800 font-medium">{r.label}</td>
+                    <td className="py-2 text-right tabular-nums">{r.facialTension}</td>
+                    <td className="py-2 text-slate-600">{r.anchor}</td>
+                    <td className="py-2 text-right tabular-nums text-slate-600">
+                      {r.quality.toFixed(2)}
+                    </td>
+                    <td className="py-2 text-slate-600">
+                      {r.calibrated ? 'settled baseline' : 'none'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <p className="text-xs text-slate-500">
+              These are readings, not assessments. They are never added to an
+              instrument total and never appear in the score table below.
+            </p>
+          </div>
+        </Card>
+      )}
+
       <Card title="Scores this session" icon={<LineChart className="w-5 h-5 text-sky-700" />}>
         {assessments.length === 0 ? (
           <p className="text-sm text-slate-600">No assessments recorded yet.</p>
@@ -230,13 +357,18 @@ export const TrendScreen = () => {
             <Database className="w-4 h-4" /> Per-item scores (
             {assessments.reduce((n, a) => n + a.items.length, 0)} rows)
           </Button>
+          <Button onClick={exportReadings} variant="ghost" disabled={readings.length === 0}>
+            <Database className="w-4 h-4" /> Facial tension readings ({readings.length} rows)
+          </Button>
         </div>
         <p className="mt-3 text-xs text-slate-500">
           Per-frame carries the raw activations, the coded actions, the geometric
           measures and the quality of every sample from the last coding run.
           Per-item carries one row for each scale item scored this session, with
           whether it came from a clinician or a model, so a total can be
-          recomputed under a different rule.
+          recomputed under a different rule. Facial tension readings are a separate
+          file rather than extra columns, because a reading is not an item of an
+          instrument and joining them invites someone to average the two.
         </p>
       </Card>
     </div>

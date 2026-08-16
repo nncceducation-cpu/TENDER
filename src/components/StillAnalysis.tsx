@@ -119,6 +119,7 @@ export const StillAnalysis = ({
   const setAiEvidence = useStore((s) => s.setAiEvidence);
   const setCalibration = useStore((s) => s.setCalibration);
   const setRawFrames = useStore((s) => s.setRawFrames);
+  const addFacialReadings = useStore((s) => s.addFacialReadings);
 
   const [description, setDescription] = useState<StillDescription[] | null>(null);
   const urlByName = new Map(scoreImages.map((i) => [i.name, i.dataUrl]));
@@ -157,6 +158,22 @@ export const StillAnalysis = ({
             geometry: d.assessment?.measures ?? null,
             facialTension: d.assessment?.facialTension ?? null,
           })),
+        );
+        // The level is a session record, not panel text. Without this it never
+        // reached the trend, the report or the export, which is what was asked
+        // for and what was missing.
+        addFacialReadings(
+          described
+            .filter((d) => d.assessment)
+            .map((d) => ({
+              label: d.frame.name,
+              origin: 'still' as const,
+              facialTension: d.assessment!.facialTension,
+              anchor: d.assessment!.anchor,
+              overallTension: d.assessment!.overallTension,
+              quality: d.frame.quality,
+              calibrated: false,
+            })),
         );
         void audit.append(
           clinician || 'unattributed',
@@ -212,6 +229,24 @@ export const StillAnalysis = ({
           geometry: frame.assessment?.measures ?? null,
           facialTension: frame.assessment?.facialTension ?? null,
         })),
+      );
+
+      addFacialReadings(
+        coding.coded
+          .filter(({ frame }) => frame.assessment)
+          .map(({ frame }) => ({
+            label: frame.name,
+            origin: 'still' as const,
+            facialTension: frame.assessment!.facialTension,
+            anchor: frame.assessment!.anchor,
+            overallTension: frame.assessment!.overallTension,
+            quality: frame.quality,
+            // A per-infant reference existed for the NFCS coding. The geometric
+            // tension level is still normalised to interocular distance rather
+            // than to this infant, so it is marked calibrated only when the
+            // reference was a settled baseline rather than the images themselves.
+            calibrated: !isSelfReferenced(calibration),
+          })),
       );
 
       if (coding.summary) {

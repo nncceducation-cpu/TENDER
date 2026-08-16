@@ -1,4 +1,4 @@
-import type { Assessment, NfcsAction } from '../domain/types';
+import type { Assessment, FacialReading, NfcsAction } from '../domain/types';
 import type { GeometryMeasures } from '../ai/faceGeometry';
 import { PROTOCOL_VERSION } from '../data/protocol/ach';
 import { SCALES } from '../data/scales';
@@ -161,6 +161,56 @@ export const assessmentsToCsv = (
       ];
     });
   });
+
+  return toCsv(headers, body);
+};
+
+// ---------------------------------------------------------------------------
+// Facial tension readings
+// ---------------------------------------------------------------------------
+
+/**
+ * One row per image read.
+ *
+ * A third file rather than extra columns on the per-item sheet, because a reading
+ * is not an item of an instrument and joining them into one table is how an
+ * uncalibrated number ends up being averaged with a scored one by whoever opens
+ * the file six months from now. The `calibrated` column is deliberately the last
+ * word in every row.
+ */
+export const readingsToCsv = (
+  readings: FacialReading[],
+  meta: { localId: string },
+): string => {
+  const headers = [
+    'protocol_version',
+    'local_id',
+    'recorded_at',
+    'image',
+    'origin',
+    'comfort_facial_tension_1_5',
+    'anchor',
+    'weighted_tension_0_1',
+    'frame_quality_0_1',
+    'reference',
+    'calibrated',
+    'scored_by',
+  ];
+
+  const body = readings.map((r) => [
+    PROTOCOL_VERSION.version,
+    meta.localId,
+    r.at,
+    r.label,
+    r.origin,
+    r.facialTension,
+    r.anchor,
+    r.overallTension.toFixed(4),
+    r.quality.toFixed(4),
+    r.calibrated ? 'settled baseline for this infant' : 'none',
+    r.calibrated ? 'TRUE' : 'FALSE',
+    r.scoredBy,
+  ]);
 
   return toCsv(headers, body);
 };

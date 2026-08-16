@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type {
   Assessment,
+  FacialReading,
   PatientContext,
   ScaleId,
   PainConstruct,
@@ -51,6 +52,11 @@ interface AppState {
   construct: PainConstruct;
   selectedScale: ScaleId;
   assessments: Assessment[];
+  /**
+   * Facial tension levels read from images or clip frames. Not assessments, and
+   * never totalled with them. See the FacialReading doc comment.
+   */
+  facialReadings: FacialReading[];
   calibration: InfantCalibration | null;
   latestAiEvidence: AiEvidence | null;
   /**
@@ -66,6 +72,8 @@ interface AppState {
   patchContext: (patch: Partial<PatientContext>) => void;
   setField: <K extends keyof AppState>(key: K, value: AppState[K]) => void;
   addAssessment: (a: Assessment) => void;
+  addFacialReadings: (r: Omit<FacialReading, 'at' | 'scoredBy'>[]) => void;
+  clearFacialReadings: () => void;
   setCalibration: (c: InfantCalibration | null) => void;
   setAiEvidence: (e: AiEvidence | null) => void;
   setRawFrames: (rows: RawFrameRow[]) => void;
@@ -97,6 +105,7 @@ export const useStore = create<AppState>((set, get) => ({
   construct: 'postoperative',
   selectedScale: 'N_PASS',
   assessments: [],
+  facialReadings: [],
   calibration: null,
   latestAiEvidence: null,
   rawFrames: [],
@@ -118,6 +127,28 @@ export const useStore = create<AppState>((set, get) => ({
     );
     set((s) => ({ assessments: [...s.assessments, a] }));
   },
+
+  addFacialReadings: (rows) => {
+    if (rows.length === 0) return;
+    const { audit, clinician } = get();
+    const at = new Date().toISOString();
+    const stamped: FacialReading[] = rows.map((r) => ({
+      ...r,
+      at,
+      scoredBy: clinician || 'unattributed',
+    }));
+    const uncal = stamped.filter((r) => !r.calibrated).length;
+    void audit.append(
+      clinician || 'unattributed',
+      'facial.read',
+      `${stamped.length} facial tension reading(s) recorded, levels ${stamped
+        .map((r) => r.facialTension)
+        .join(', ')}${uncal > 0 ? `; ${uncal} uncalibrated` : ''}.`,
+    );
+    set((s) => ({ facialReadings: [...s.facialReadings, ...stamped] }));
+  },
+
+  clearFacialReadings: () => set({ facialReadings: [] }),
 
   setCalibration: (calibration) => {
     const { audit, clinician } = get();
@@ -146,6 +177,7 @@ export const useStore = create<AppState>((set, get) => ({
       hoursSincePostOp: null,
       postmenstrualAgeWeeks: 0,
       assessments: [],
+      facialReadings: [],
       calibration: null,
       latestAiEvidence: null,
       rawFrames: [],
@@ -180,6 +212,7 @@ export const useStore = create<AppState>((set, get) => ({
           postmenstrualAgeWeeks: s.postmenstrualAgeWeeks,
         },
         assessments: s.assessments,
+        facialReadings: s.facialReadings,
         calibration: s.calibration
           ? {
               createdAt: s.calibration.createdAt,
