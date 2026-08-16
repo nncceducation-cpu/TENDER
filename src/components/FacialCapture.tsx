@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, CircleStop, Gauge, ScanFace, ShieldCheck } from 'lucide-react';
 import { FaceLandmarkerService, assessFrameQuality } from '../ai/faceLandmarker';
-import { calibrate, codeFrame, rawActivations, summariseWindow } from '../ai/nfcsFeatures';
+import { calibrate, codeFrame, describeCalibration, rawActivations, summariseWindow } from '../ai/nfcsFeatures';
 import { CryAnalyser } from '../ai/cry';
 import { TransparentIndex } from '../ai/painModel';
 import { buildSuggestions } from '../ai/suggestions';
@@ -195,13 +195,14 @@ export const FacialCapture = ({ onEvidence }: { onEvidence?: (e: AiEvidence) => 
     stopAll();
     const result = calibrate(ctx.localId || 'unidentified', baselineRef.current, {
       elapsedSeconds,
+      source: 'live',
     });
     if ('error' in result) {
       setError(result.error);
       setStatus('Baseline rejected.');
     } else {
       setCalibration(result);
-      setStatus(`Baseline stored: ${result.baselineSeconds.toFixed(0)} s.`);
+      setStatus(`Baseline stored: ${describeCalibration(result)}.`);
     }
     setMode('idle');
   };

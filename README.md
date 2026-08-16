@@ -79,6 +79,13 @@ key is needed, and it works on the public site and offline. Coding a file is als
 reproducible, which a live feed is not, so this is the route a validation study
 would use.
 
+**Score still images.** Upload settled images of the infant to calibrate against
+and images to code. Each one reports which NFCS actions are present above that
+infant's own resting face. A single photograph cannot produce an epoch score,
+because NFCS sums per-second coding across a window, but a set of images sampled
+from one period can: the proportion showing each action is the quantity PIPP-R
+bands. On device, no key, works on the public site.
+
 **Cloud second opinion.** Optional, off by default, and the only part of TENDER
 that transmits anything. Send a single still to Gemini and it scores the COMFORT
 behaviour facial tension item and codes the NFCS actions. Enabled only when you run

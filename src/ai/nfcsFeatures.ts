@@ -108,15 +108,32 @@ export interface ActionBaseline {
   samples: number;
 }
 
+/**
+ * Where a baseline came from. A calibration built from still images has a sample
+ * count, not a duration, and describing it in seconds was misleading: eight
+ * photographs were reported as "8 s of video".
+ */
+export type CalibrationSource = 'live' | 'clip' | 'stills';
+
 export interface InfantCalibration {
   localId: string;
   createdAt: string;
+  source: CalibrationSource;
   baselines: Partial<Record<NfcsAction, ActionBaseline>>;
   /** How many robust SDs above baseline count as the action being present. */
   k: number;
+  /** Seconds of usable baseline for video sources; sample count for stills. */
   baselineSeconds: number;
+  /** Usable samples the baseline was built from, whatever the source. */
+  baselineSamples: number;
   notes: string[];
 }
+
+/** One line describing the baseline, phrased for the source it came from. */
+export const describeCalibration = (c: InfantCalibration): string =>
+  c.source === 'stills'
+    ? `${c.baselineSamples} settled images`
+    : `${c.baselineSeconds.toFixed(0)} s of ${c.source === 'live' ? 'live video' : 'recorded video'}`;
 
 const median = (xs: number[]): number => {
   const s = [...xs].sort((a, b) => a - b);
@@ -143,7 +160,13 @@ export const DEFAULT_K = 3;
 export const calibrate = (
   localId: string,
   baselineFrames: { activations: Record<NfcsAction, number>; quality: number }[],
-  options: { k?: number; minSeconds?: number; elapsedSeconds?: number; fps?: number } = {},
+  options: {
+    k?: number;
+    minSeconds?: number;
+    elapsedSeconds?: number;
+    fps?: number;
+    source?: CalibrationSource;
+  } = {},
 ): InfantCalibration | { error: string } => {
   const k = options.k ?? DEFAULT_K;
   const minSeconds = options.minSeconds ?? 20;
@@ -208,16 +231,21 @@ export const calibrate = (
     }
   }
 
+  const source = options.source ?? 'live';
   notes.push(
-    `Calibrated on ${seconds.toFixed(0)} s of settled baseline. An action is coded present at ${k} robust SD above this infant's own baseline.`,
+    source === 'stills'
+      ? `Calibrated on ${usable.length} settled images. An action is coded present at ${k} robust SD above this infant's own baseline.`
+      : `Calibrated on ${seconds.toFixed(0)} s of settled baseline. An action is coded present at ${k} robust SD above this infant's own baseline.`,
   );
 
   return {
     localId,
     createdAt: new Date().toISOString(),
+    source,
     baselines,
     k,
     baselineSeconds: seconds,
+    baselineSamples: usable.length,
     notes,
   };
 };

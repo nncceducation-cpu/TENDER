@@ -9,6 +9,7 @@ import { decideEscalation } from '../engine/protocolEngine';
 import { FacialCapture } from './FacialCapture';
 import { VisionAssist } from './VisionAssist';
 import { ClipAnalysis } from './ClipAnalysis';
+import { StillAnalysis } from './StillAnalysis';
 import type { PainConstruct, ScaleId, ScoredItem } from '../domain/types';
 
 /** How long a capture window stays a fair description of the infant. */
@@ -186,6 +187,7 @@ export const AssessScreen = () => {
         <>
           <FacialCapture />
           <ClipAnalysis />
+          <StillAnalysis />
           <VisionAssist
             onFacialTension={
               items.some((i) => i.id === 'facial_tension')

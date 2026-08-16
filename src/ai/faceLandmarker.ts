@@ -44,40 +44,55 @@ export class FaceLandmarkerService {
   private landmarker: FaceLandmarker | null = null;
   private loading: Promise<FaceLandmarker> | null = null;
 
+  /**
+   * Still images need a landmarker in IMAGE mode. Switching an existing instance
+   * back and forth with setOptions rebuilds the graph each time, so a second
+   * instance is cheaper than thrashing one, and it keeps video tracking state
+   * from leaking into a still that has nothing to do with it.
+   */
+  private stillLandmarker: FaceLandmarker | null = null;
+  private stillLoading: Promise<FaceLandmarker> | null = null;
+
   private config: LandmarkerConfig;
 
   constructor(config: LandmarkerConfig = DEFAULT_LANDMARKER_CONFIG) {
     this.config = config;
   }
 
+  private async create(runningMode: 'VIDEO' | 'IMAGE'): Promise<FaceLandmarker> {
+    const fileset = await FilesetResolver.forVisionTasks(this.config.wasmPath);
+    const build = (delegate: 'GPU' | 'CPU') =>
+      FaceLandmarker.createFromOptions(fileset, {
+        baseOptions: { modelAssetPath: this.config.modelAssetPath, delegate },
+        runningMode,
+        numFaces: 1,
+        outputFaceBlendshapes: true,
+        outputFacialTransformationMatrixes: true,
+        minFaceDetectionConfidence: 0.4,
+        minFacePresenceConfidence: 0.4,
+        minTrackingConfidence: 0.4,
+      });
+
+    try {
+      return await build(this.config.delegate ?? 'GPU');
+    } catch {
+      // Hospital workstations frequently have no usable WebGL context.
+      return await build('CPU');
+    }
+  }
+
   async load(): Promise<FaceLandmarker> {
     if (this.landmarker) return this.landmarker;
     if (this.loading) return this.loading;
-
-    this.loading = (async () => {
-      const fileset = await FilesetResolver.forVisionTasks(this.config.wasmPath);
-      const create = (delegate: 'GPU' | 'CPU') =>
-        FaceLandmarker.createFromOptions(fileset, {
-          baseOptions: { modelAssetPath: this.config.modelAssetPath, delegate },
-          runningMode: 'VIDEO',
-          numFaces: 1,
-          outputFaceBlendshapes: true,
-          outputFacialTransformationMatrixes: true,
-          minFaceDetectionConfidence: 0.4,
-          minFacePresenceConfidence: 0.4,
-          minTrackingConfidence: 0.4,
-        });
-
-      try {
-        this.landmarker = await create(this.config.delegate ?? 'GPU');
-      } catch {
-        // Hospital workstations frequently have no usable WebGL context.
-        this.landmarker = await create('CPU');
-      }
-      return this.landmarker;
-    })();
-
+    this.loading = this.create('VIDEO').then((l) => (this.landmarker = l));
     return this.loading;
+  }
+
+  async loadStill(): Promise<FaceLandmarker> {
+    if (this.stillLandmarker) return this.stillLandmarker;
+    if (this.stillLoading) return this.stillLoading;
+    this.stillLoading = this.create('IMAGE').then((l) => (this.stillLandmarker = l));
+    return this.stillLoading;
   }
 
   detect(video: HTMLVideoElement, timestampMs: number): FaceLandmarkerResult | null {
@@ -85,10 +100,18 @@ export class FaceLandmarkerService {
     return this.landmarker.detectForVideo(video, timestampMs);
   }
 
+  detectStill(image: HTMLImageElement | HTMLCanvasElement): FaceLandmarkerResult | null {
+    if (!this.stillLandmarker) return null;
+    return this.stillLandmarker.detect(image);
+  }
+
   close(): void {
     this.landmarker?.close();
+    this.stillLandmarker?.close();
     this.landmarker = null;
+    this.stillLandmarker = null;
     this.loading = null;
+    this.stillLoading = null;
   }
 }
 

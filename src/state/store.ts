@@ -7,6 +7,7 @@ import type {
   AiEvidence,
 } from '../domain/types';
 import { AuditLog } from './audit';
+import { describeCalibration } from '../ai/nfcsFeatures';
 import type { InfantCalibration } from '../ai/nfcsFeatures';
 import { PROTOCOL_VERSION } from '../data/protocol/ach';
 
@@ -109,7 +110,7 @@ export const useStore = create<AppState>((set, get) => ({
       void audit.append(
         clinician || 'unattributed',
         'ai.calibrated',
-        `Facial baseline recorded over ${calibration.baselineSeconds.toFixed(0)} s at k=${calibration.k}.`,
+        `Facial baseline recorded from ${describeCalibration(calibration)} at k=${calibration.k}.`,
       );
     }
     set({ calibration });
@@ -143,7 +144,13 @@ export const useStore = create<AppState>((set, get) => ({
         context: s.ctx,
         assessments: s.assessments,
         calibration: s.calibration
-          ? { createdAt: s.calibration.createdAt, k: s.calibration.k, baselineSeconds: s.calibration.baselineSeconds }
+          ? {
+              createdAt: s.calibration.createdAt,
+              source: s.calibration.source,
+              k: s.calibration.k,
+              baselineSeconds: s.calibration.baselineSeconds,
+              baselineSamples: s.calibration.baselineSamples,
+            }
           : null,
         audit: s.audit.all(),
         note: 'Contains no name, no medical record number and no date of birth. The local identifier is whatever the unit chose to type.',

@@ -317,3 +317,113 @@ describe('clip sampling rate', () => {
     expect(estimateFrames(15, 3600)).toBeGreaterThan(600);
   });
 });
+
+describe('still image coding', () => {
+  const still = (name: string, v: number, quality = 0.9) => ({
+    index: 0,
+    name,
+    activations: activations(v),
+    quality,
+    problems: [],
+    faceFound: true,
+  });
+
+  it('refuses to calibrate from too few images', async () => {
+    const { calibrateFromStills, MIN_BASELINE_STILLS } = await import('../stillAnalysis');
+    const r = calibrateFromStills('BED-1', [still('a', 0.05), still('b', 0.05)]);
+    expect('error' in r).toBe(true);
+    if ('error' in r) expect(r.error).toMatch(new RegExp(`${MIN_BASELINE_STILLS} are needed`));
+  });
+
+  it('says when no face was found rather than blaming the count', async () => {
+    const { calibrateFromStills } = await import('../stillAnalysis');
+    const r = calibrateFromStills('BED-1', [
+      { index: 0, name: 'a', activations: {} as never, quality: 0, problems: [], faceFound: false },
+    ]);
+    expect('error' in r).toBe(true);
+    if ('error' in r) expect(r.error).toMatch(/No face was detected in any/);
+  });
+
+  it('calibrates from enough usable images', async () => {
+    const { calibrateFromStills } = await import('../stillAnalysis');
+    const frames = Array.from({ length: 8 }, (_, i) => still(`b${i}`, 0.05 + (i % 3) * 0.01));
+    const r = calibrateFromStills('BED-1', frames);
+    expect('error' in r).toBe(false);
+  });
+
+  it('codes each image and skips the ones it cannot use', async () => {
+    const { calibrateFromStills, codeStills } = await import('../stillAnalysis');
+    const c = calibrateFromStills(
+      'BED-1',
+      Array.from({ length: 8 }, (_, i) => still(`b${i}`, 0.05 + (i % 3) * 0.01)),
+    );
+    if ('error' in c) throw new Error(c.error);
+
+    const r = codeStills(
+      [still('calm.jpg', 0.05), still('grimace.jpg', 0.9), still('blurred.jpg', 0.5, 0.2)],
+      c,
+      false,
+    );
+    expect(r.usableCount).toBe(2);
+    expect(r.skipped).toHaveLength(1);
+    expect(r.coded[0].actions.brow_bulge).toBe(false);
+    expect(r.coded[1].actions.brow_bulge).toBe(true);
+  });
+
+  it('produces no proportion for images that are not a sequence', async () => {
+    const { calibrateFromStills, codeStills } = await import('../stillAnalysis');
+    const c = calibrateFromStills(
+      'BED-1',
+      Array.from({ length: 8 }, (_, i) => still(`b${i}`, 0.05 + (i % 3) * 0.01)),
+    );
+    if ('error' in c) throw new Error(c.error);
+    expect(codeStills([still('a', 0.9), still('b', 0.9)], c, false).summary).toBeNull();
+    expect(codeStills([still('a', 0.9), still('b', 0.9)], c, true).summary).not.toBeNull();
+  });
+
+  it('treats a sequence as one coding unit per image', async () => {
+    const { calibrateFromStills, codeStills } = await import('../stillAnalysis');
+    const c = calibrateFromStills(
+      'BED-1',
+      Array.from({ length: 8 }, (_, i) => still(`b${i}`, 0.05 + (i % 3) * 0.01)),
+    );
+    if ('error' in c) throw new Error(c.error);
+    const r = codeStills(
+      Array.from({ length: 4 }, (_, i) => still(`s${i}`, i < 3 ? 0.9 : 0.05)),
+      c,
+      true,
+    );
+    // Three of four images show the action, so the proportion is 0.75.
+    expect(r.summary!.proportionPresent.brow_bulge).toBeCloseTo(0.75, 6);
+  });
+});
+
+describe('describing a baseline honestly', () => {
+  const settled = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      activations: activations(0.05 + (i % 3) * 0.01),
+      quality: 0.9,
+    }));
+
+  it('reports still baselines as images, not seconds', async () => {
+    const { calibrate, describeCalibration } = await import('../nfcsFeatures');
+    const c = calibrate('BED-1', settled(8), { fps: 1, minSeconds: 5, source: 'stills' });
+    if ('error' in c) throw new Error(c.error);
+    expect(describeCalibration(c)).toBe('8 settled images');
+    expect(c.notes.join(' ')).toMatch(/8 settled images/);
+  });
+
+  it('reports video baselines in seconds', async () => {
+    const { calibrate, describeCalibration } = await import('../nfcsFeatures');
+    const c = calibrate('BED-1', settled(450), { elapsedSeconds: 30, source: 'clip' });
+    if ('error' in c) throw new Error(c.error);
+    expect(describeCalibration(c)).toBe('30 s of recorded video');
+  });
+
+  it('records the sample count whatever the source', async () => {
+    const { calibrate } = await import('../nfcsFeatures');
+    const c = calibrate('BED-1', settled(12), { fps: 1, minSeconds: 5, source: 'stills' });
+    if ('error' in c) throw new Error(c.error);
+    expect(c.baselineSamples).toBe(12);
+  });
+});

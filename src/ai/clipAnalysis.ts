@@ -183,7 +183,7 @@ export const analyseClip = async (
   const calibration = calibrate(
     ranges.localId,
     baselineFrames.map((f) => ({ activations: f.activations, quality: f.quality })),
-    { elapsedSeconds: baselineSeconds, minSeconds: 10 },
+    { elapsedSeconds: baselineSeconds, minSeconds: 10, source: 'clip' },
   );
   if ('error' in calibration) {
     const found = baselineFrames.length / expectedBaselineFrames;
