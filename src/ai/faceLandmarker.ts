@@ -115,6 +115,83 @@ export class FaceLandmarkerService {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Canonical face crop
+// ---------------------------------------------------------------------------
+
+/** Every still is measured at this face-box resolution, whatever it arrived as. */
+export const CANONICAL_FACE_PX = 512;
+/** A second, deliberately different scale, used only to test whether a reading holds. */
+export const STABILITY_FACE_PX = 384;
+
+export interface FaceCrop {
+  canvas: HTMLCanvasElement;
+  /** Size of the face box in the ORIGINAL image, in pixels. */
+  faceBoxPx: number;
+}
+
+/**
+ * Re-present the face to the detector at a fixed pixel size.
+ *
+ * Normalising the measures to interocular distance removes scale from the
+ * arithmetic, but it does not remove it from the landmarks. Landmark error is
+ * roughly a fixed number of pixels, so it is proportionally largest on the
+ * smallest distance being measured, which is lip separation. Measured on the same
+ * photograph resampled between 300 and 1800 pixels, mouth opening moved by 45%
+ * and brow-to-eye straddled its own reference threshold. That is enough to move
+ * the COMFORT level, which means the tool answered differently on one image
+ * depending on how the file had been saved.
+ *
+ * Cropping to the face box and resampling to a constant size makes the detector
+ * see the same number of pixels across the same anatomy every time. It cannot
+ * invent detail that a small photograph never had, which is what `faceBoxPx` is
+ * reported for.
+ */
+export const canonicaliseFace = (
+  source: HTMLImageElement | HTMLCanvasElement,
+  result: FaceLandmarkerResult,
+  targetPx: number = CANONICAL_FACE_PX,
+): FaceCrop | null => {
+  const lm = result.faceLandmarks[0];
+  if (!lm || lm.length === 0) return null;
+
+  const w = source instanceof HTMLImageElement ? source.naturalWidth : source.width;
+  const h = source instanceof HTMLImageElement ? source.naturalHeight : source.height;
+  if (!w || !h) return null;
+
+  const xs = lm.map((p) => p.x * w);
+  const ys = lm.map((p) => p.y * h);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+
+  const faceBoxPx = Math.max(maxX - minX, maxY - minY);
+  if (faceBoxPx <= 0) return null;
+
+  // Square, centred, with margin. The margin matters: a crop tight to the jaw
+  // starves the blendshape head of the context it was trained with.
+  const side = faceBoxPx * 1.6;
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = targetPx;
+  canvas.height = targetPx;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  // A neutral field behind the crop, for the case where the face sits near an
+  // edge and the square runs off the image.
+  ctx.fillStyle = '#7f7f7f';
+  ctx.fillRect(0, 0, targetPx, targetPx);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(source, cx - side / 2, cy - side / 2, side, side, 0, 0, targetPx, targetPx);
+
+  return { canvas, faceBoxPx };
+};
+
 /**
  * Frame quality gate.
  *

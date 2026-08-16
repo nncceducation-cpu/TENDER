@@ -303,5 +303,14 @@ export interface FacialReading {
    * to the same infant an hour later.
    */
   calibrated: boolean;
+  /**
+   * False when re-measuring the same face at a different resampling scale landed
+   * on a different level. The reading is then a boundary case and should be read
+   * as "between these two", not as a number.
+   */
+  levelStable: boolean;
+  alternateLevel: number | null;
+  /** Face box in the original image, in pixels. Precision depends on it. */
+  faceBoxPx: number | null;
   scoredBy: string;
 }

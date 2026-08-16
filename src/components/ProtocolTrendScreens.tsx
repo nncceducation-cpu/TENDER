@@ -170,6 +170,7 @@ export const TrendScreen = () => {
    */
   const readings = s.facialReadings;
   const anyUncalibrated = readings.some((r) => !r.calibrated);
+  const anyUnstable = readings.some((r) => !r.levelStable);
   const tensionSeverity = (level: number): Severity =>
     level >= 5 ? 'severe' : level >= 4 ? 'moderate' : level >= 3 ? 'mild' : 'none';
 
@@ -213,6 +214,15 @@ export const TrendScreen = () => {
               </Callout>
             )}
 
+            {anyUnstable && (
+              <Callout tone="warn" title="A reading sits on a boundary">
+                Where a row below says between, the same face measured at a
+                different resampling scale landed on the neighbouring level. Read
+                those as spanning two levels. This is a property of the photograph,
+                not of the infant.
+              </Callout>
+            )}
+
             {latestReading && (
               <HeroScore
                 label="Most recent reading"
@@ -250,6 +260,7 @@ export const TrendScreen = () => {
                   <th className="py-2 text-right">Level</th>
                   <th className="py-2">Anchor</th>
                   <th className="py-2 text-right">Quality</th>
+                  <th className="py-2 text-right">Face px</th>
                   <th className="py-2">Reference</th>
                 </tr>
               </thead>
@@ -257,10 +268,20 @@ export const TrendScreen = () => {
                 {readings.map((r, i) => (
                   <tr key={r.label + i} className="border-b border-slate-100">
                     <td className="py-2 text-slate-800 font-medium">{r.label}</td>
-                    <td className="py-2 text-right tabular-nums">{r.facialTension}</td>
+                    <td className="py-2 text-right tabular-nums">
+                      {r.levelStable
+                        ? r.facialTension
+                        : `${Math.min(r.facialTension, r.alternateLevel ?? r.facialTension)}-${Math.max(
+                            r.facialTension,
+                            r.alternateLevel ?? r.facialTension,
+                          )}`}
+                    </td>
                     <td className="py-2 text-slate-600">{r.anchor}</td>
                     <td className="py-2 text-right tabular-nums text-slate-600">
                       {r.quality.toFixed(2)}
+                    </td>
+                    <td className="py-2 text-right tabular-nums text-slate-600">
+                      {r.faceBoxPx === null ? '-' : Math.round(r.faceBoxPx)}
                     </td>
                     <td className="py-2 text-slate-600">
                       {r.calibrated ? 'settled baseline' : 'none'}

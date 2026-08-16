@@ -215,12 +215,22 @@ export const buildSessionReport = async (input: ReportInput): Promise<jsPDF> => 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
       doc.setTextColor(...SLATE);
-      doc.text(`${r.label}: COMFORT facial tension ${r.facialTension} of 5`, M, y);
+      doc.text(
+        r.levelStable
+          ? `${r.label}: COMFORT facial tension ${r.facialTension} of 5`
+          : `${r.label}: COMFORT facial tension ${Math.min(r.facialTension, r.alternateLevel ?? r.facialTension)} to ${Math.max(r.facialTension, r.alternateLevel ?? r.facialTension)} of 5`,
+        M,
+        y,
+      );
       y += 5;
       body(r.anchor, 3);
       muted(
-        `Weighted tension ${(r.overallTension * 100).toFixed(0)}%, frame quality ${r.quality.toFixed(2)}, reference ${
+        `Weighted tension ${(r.overallTension * 100).toFixed(0)}%, frame quality ${r.quality.toFixed(2)}, face box ${
+          r.faceBoxPx === null ? 'unknown' : `${Math.round(r.faceBoxPx)} px`
+        }, reference ${
           r.calibrated ? 'settled baseline for this infant' : 'NONE (uncalibrated)'
+        }${
+          r.levelStable ? '' : '. BOUNDARY: re-measured at another scale this face read as the neighbouring level'
         }, read by ${r.scoredBy} at ${new Date(r.at).toLocaleTimeString()}.`,
         3,
       );

@@ -1,5 +1,10 @@
 import type { FaceLandmarkerService } from './faceLandmarker';
-import { assessFrameQuality } from './faceLandmarker';
+import {
+  assessFrameQuality,
+  canonicaliseFace,
+  CANONICAL_FACE_PX,
+  STABILITY_FACE_PX,
+} from './faceLandmarker';
 import { calibrate, rawActivations, selfReference, summariseWindow } from './nfcsFeatures';
 import type { InfantCalibration } from './nfcsFeatures';
 import { measureGeometry, readSingleImage, type SingleImageAssessment } from './faceGeometry';
@@ -38,6 +43,16 @@ export interface StillFrame {
    * Null when the landmarks were insufficient to measure.
    */
   assessment: SingleImageAssessment | null;
+  /** Face box size in the original image, in pixels. Null when no face. */
+  faceBoxPx: number | null;
+  /**
+   * False when re-measuring the same face at a different resampling scale lands
+   * on a different COMFORT level, which means the reading sits on a boundary and
+   * should be read as "between these two" rather than as a number.
+   */
+  levelStable: boolean;
+  /** The level the second scale produced, when it disagreed. */
+  alternateLevel: number | null;
 }
 
 /** Minimum settled images needed before thresholds mean anything. */
@@ -60,26 +75,87 @@ export const analyseStills = async (
 
   for (let i = 0; i < images.length; i++) {
     const img = await decode(images[i].dataUrl);
-    const result = service.detectStill(img);
-    const q = assessFrameQuality(result, img.naturalWidth, img.naturalHeight);
-    const faceFound = Boolean(result && result.faceLandmarks.length > 0);
+
+    // First pass locates the face in the image as supplied. Quality is judged
+    // here, on the real thing, because after cropping every face fills its frame
+    // and a genuinely small or oblique face would look perfect.
+    const located = service.detectStill(img);
+    const q = assessFrameQuality(located, img.naturalWidth, img.naturalHeight);
+    const faceFound = Boolean(located && located.faceLandmarks.length > 0);
+
+    if (!faceFound || !located) {
+      out.push({
+        index: i,
+        name: images[i].name,
+        activations: {} as Record<NfcsAction, number>,
+        quality: 0,
+        problems: q.problems,
+        faceFound: false,
+        assessment: null,
+        faceBoxPx: null,
+        levelStable: true,
+        alternateLevel: null,
+      });
+      onProgress?.((i + 1) / images.length);
+      continue;
+    }
+
+    // Second pass measures a fixed-size crop, so the same face is always
+    // presented to the detector at the same pixel scale.
+    const crop = canonicaliseFace(img, located, CANONICAL_FACE_PX);
+    const measured = crop ? service.detectStill(crop.canvas) : null;
+    const useResult = measured && measured.faceLandmarks.length > 0 ? measured : located;
+    const useW = useResult === measured ? CANONICAL_FACE_PX : img.naturalWidth;
+    const useH = useResult === measured ? CANONICAL_FACE_PX : img.naturalHeight;
+
+    const geometry = measureGeometry(useResult, useW, useH);
+    const assessment = geometry ? readSingleImage(geometry) : null;
+
+    // Third pass at a different scale, to find out whether the level is a fact
+    // about the face or an artefact of the resampling.
+    let levelStable = true;
+    let alternateLevel: number | null = null;
+    if (assessment && crop) {
+      const alt = canonicaliseFace(img, located, STABILITY_FACE_PX);
+      const altResult = alt ? service.detectStill(alt.canvas) : null;
+      if (altResult && altResult.faceLandmarks.length > 0) {
+        const altGeom = measureGeometry(altResult, STABILITY_FACE_PX, STABILITY_FACE_PX);
+        const altRead = altGeom ? readSingleImage(altGeom) : null;
+        if (altRead && altRead.facialTension !== assessment.facialTension) {
+          levelStable = false;
+          alternateLevel = altRead.facialTension;
+        }
+      }
+    }
+
+    const faceBoxPx = crop?.faceBoxPx ?? null;
+    const problems = [...q.problems];
+    let quality = q.quality;
+
+    // Upsampling a small face box to 512 does not create detail it never had.
+    if (faceBoxPx !== null && faceBoxPx < 220) {
+      quality *= Math.max(0.4, faceBoxPx / 220);
+      problems.push(
+        `The face occupies only ${Math.round(faceBoxPx)} pixels in this image. Measurements on a face this small are imprecise however the file is scaled.`,
+      );
+    }
+    if (!levelStable) {
+      problems.push(
+        `Re-measured at a different scale this face read as level ${alternateLevel} rather than ${assessment?.facialTension}. The reading sits on a boundary.`,
+      );
+    }
 
     out.push({
       index: i,
       name: images[i].name,
-      activations: faceFound
-        ? rawActivations(result!)
-        : ({} as Record<NfcsAction, number>),
-      quality: faceFound ? q.quality : 0,
-      problems: q.problems,
-      faceFound,
-      assessment:
-        faceFound && result
-          ? (() => {
-              const m = measureGeometry(result, img.naturalWidth, img.naturalHeight);
-              return m ? readSingleImage(m) : null;
-            })()
-          : null,
+      activations: rawActivations(useResult),
+      quality,
+      problems,
+      faceFound: true,
+      assessment,
+      faceBoxPx,
+      levelStable,
+      alternateLevel,
     });
 
     onProgress?.((i + 1) / images.length);

@@ -327,6 +327,9 @@ describe('still image coding', () => {
     problems: [],
     faceFound: true,
     assessment: null,
+    faceBoxPx: 400,
+    levelStable: true,
+    alternateLevel: null,
   });
 
   it('refuses to calibrate from too few images', async () => {
@@ -347,6 +350,9 @@ describe('still image coding', () => {
         problems: [],
         faceFound: false,
         assessment: null,
+        faceBoxPx: null,
+        levelStable: true,
+        alternateLevel: null,
       },
     ]);
     expect('error' in r).toBe(true);
@@ -504,6 +510,9 @@ describe('describing stills with no reference at all', () => {
       problems: [],
       faceFound: true,
       assessment: null,
+      faceBoxPx: null,
+      levelStable: true,
+      alternateLevel: null,
     };
     const [d] = describeStills([frame]);
     expect(d.ranked[0].action).toBe('brow_bulge');
@@ -523,6 +532,9 @@ describe('describing stills with no reference at all', () => {
         problems: [],
         faceFound: true,
         assessment: null,
+        faceBoxPx: null,
+        levelStable: true,
+        alternateLevel: null,
       },
     ]);
     expect(d.ranked.some((r) => r.action === 'taut_tongue')).toBe(false);
@@ -540,6 +552,9 @@ describe('describing stills with no reference at all', () => {
         problems: [],
         faceFound: false,
         assessment: null,
+        faceBoxPx: null,
+        levelStable: true,
+        alternateLevel: null,
       },
       ]),
     ).toHaveLength(0);

@@ -32,6 +32,11 @@ export interface RawFrameRow {
   geometry?: GeometryMeasures | null;
   /** Uncalibrated COMFORT facial tension, where one was derived. */
   facialTension?: number | null;
+  /** Face box in the original image, in pixels. Precision depends on it. */
+  faceBoxPx?: number | null;
+  /** False when a different resampling scale produced a different level. */
+  levelStable?: boolean;
+  alternateLevel?: number | null;
 }
 
 const ACTIONS: NfcsAction[] = [
@@ -73,6 +78,9 @@ export const framesToCsv = (rows: RawFrameRow[]): string => {
     'geom_brow_to_eye',
     'geom_face_proportion',
     'comfort_facial_tension',
+    'face_box_px',
+    'level_stable',
+    'alternate_level',
   ];
 
   const body = rows.map((r) => [
@@ -89,6 +97,9 @@ export const framesToCsv = (rows: RawFrameRow[]): string => {
     r.geometry?.browToEye ?? '',
     r.geometry?.faceProportion ?? '',
     r.facialTension ?? '',
+    r.faceBoxPx ?? '',
+    r.levelStable === undefined ? '' : r.levelStable ? 'TRUE' : 'FALSE',
+    r.alternateLevel ?? '',
   ]);
 
   return toCsv(headers, body);
@@ -194,6 +205,9 @@ export const readingsToCsv = (
     'frame_quality_0_1',
     'reference',
     'calibrated',
+    'level_stable',
+    'alternate_level',
+    'face_box_px',
     'scored_by',
   ];
 
@@ -209,6 +223,9 @@ export const readingsToCsv = (
     r.quality.toFixed(4),
     r.calibrated ? 'settled baseline for this infant' : 'none',
     r.calibrated ? 'TRUE' : 'FALSE',
+    r.levelStable ? 'TRUE' : 'FALSE',
+    r.alternateLevel ?? '',
+    r.faceBoxPx === null ? '' : Math.round(r.faceBoxPx),
     r.scoredBy,
   ]);
 

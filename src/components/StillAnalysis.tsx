@@ -157,6 +157,9 @@ export const StillAnalysis = ({
             activations: d.frame.activations,
             geometry: d.assessment?.measures ?? null,
             facialTension: d.assessment?.facialTension ?? null,
+            faceBoxPx: d.frame.faceBoxPx,
+            levelStable: d.frame.levelStable,
+            alternateLevel: d.frame.alternateLevel,
           })),
         );
         // The level is a session record, not panel text. Without this it never
@@ -173,6 +176,9 @@ export const StillAnalysis = ({
               overallTension: d.assessment!.overallTension,
               quality: d.frame.quality,
               calibrated: false,
+              levelStable: d.frame.levelStable,
+              alternateLevel: d.frame.alternateLevel,
+              faceBoxPx: d.frame.faceBoxPx,
             })),
         );
         void audit.append(
@@ -228,6 +234,9 @@ export const StillAnalysis = ({
           coded: actions,
           geometry: frame.assessment?.measures ?? null,
           facialTension: frame.assessment?.facialTension ?? null,
+          faceBoxPx: frame.faceBoxPx,
+          levelStable: frame.levelStable,
+          alternateLevel: frame.alternateLevel,
         })),
       );
 
@@ -241,6 +250,9 @@ export const StillAnalysis = ({
             anchor: frame.assessment!.anchor,
             overallTension: frame.assessment!.overallTension,
             quality: frame.quality,
+            levelStable: frame.levelStable,
+            alternateLevel: frame.alternateLevel,
+            faceBoxPx: frame.faceBoxPx,
             // A per-infant reference existed for the NFCS coding. The geometric
             // tension level is still normalised to interocular distance rather
             // than to this infant, so it is marked calibrated only when the
@@ -490,8 +502,25 @@ export const StillAnalysis = ({
                   {d.frame.name}
                   <span className="ml-2 text-xs font-normal text-slate-500">
                     quality {d.frame.quality.toFixed(2)}
+                    {d.frame.faceBoxPx !== null &&
+                      `, face ${Math.round(d.frame.faceBoxPx)} px`}
                   </span>
                 </p>
+
+                {/*
+                  These were computed and then never shown. A face too small to
+                  measure, a head turned past 30 degrees, or a level that moves
+                  when the image is resampled are the three things most likely to
+                  make the number below wrong, and all three were being kept from
+                  the person reading it.
+                */}
+                {d.frame.problems.length > 0 && (
+                  <ul className="mt-1 text-xs text-amber-800 list-disc list-inside space-y-0.5">
+                    {d.frame.problems.map((pr) => (
+                      <li key={pr}>{pr}</li>
+                    ))}
+                  </ul>
+                )}
 
                 {d.assessment ? (
                   <div className="mt-2 space-y-3">
