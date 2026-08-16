@@ -35,6 +35,8 @@ const label = (
   y: number,
   scale: number,
   align: 'left' | 'right' | 'center' = 'left',
+  /** Lowest y the box may occupy, so labels stay clear of the caption block. */
+  maxY?: number,
 ) => {
   ctx.font = `${Math.round(13 * scale)}px system-ui, -apple-system, "Segoe UI", sans-serif`;
   const w = ctx.measureText(text).width;
@@ -45,7 +47,8 @@ const label = (
 
   let bx = align === 'right' ? x - boxW : align === 'center' ? x - boxW / 2 : x;
   bx = Math.max(margin, Math.min(bx, ctx.canvas.width - boxW - margin));
-  const by = Math.max(h + margin, Math.min(y, ctx.canvas.height - margin));
+  const floor = maxY ?? ctx.canvas.height - margin;
+  const by = Math.max(h + margin, Math.min(y, floor));
 
   ctx.fillStyle = 'rgba(11,11,11,0.72)';
   ctx.beginPath();
@@ -137,9 +140,37 @@ export const FaceOverlay = ({
       ctx.drawImage(img, 0, 0);
       if (!showOverlay) return;
 
-      // Scale marks to the image so a 4000px photo does not get hairlines.
-      const scale = Math.max(1, Math.min(img.naturalWidth, img.naturalHeight) / 500);
       const p = assessment.measures.points;
+
+      /**
+       * Marks are scaled to the face, not to the frame.
+       *
+       * Frame-relative scaling was wrong in both directions. On a 3000x4000 phone
+       * photo of a face occupying 800 pixels it drew labels twice the size they
+       * needed to be; on a wide cot shot with a small face it drew labels large
+       * enough to cover the features they pointed at. Interocular distance is the
+       * ruler every measure here already uses, so it is the right basis for the
+       * annotation as well.
+       */
+      const interocularPx = Math.hypot(
+        p.rightEye.outer.x - p.leftEye.outer.x,
+        p.rightEye.outer.y - p.leftEye.outer.y,
+      );
+      const scale = Math.max(1, Math.min(6, interocularPx / 110));
+
+      /**
+       * The caption is chrome, not annotation, so it is sized to the frame. Tying
+       * it to the face put 96px type on an 820px close-up and clipped every line
+       * of the safety text, which is the one thing on this image that must always
+       * be readable.
+       */
+      const chrome = Math.max(0.8, Math.min(3, Math.min(img.naturalWidth, img.naturalHeight) / 500));
+      const boxH = 74 * chrome;
+      const boxW = Math.min(canvas.width - 24 * chrome, 470 * chrome);
+      const bx = 12 * chrome;
+      const by = canvas.height - boxH - 12 * chrome;
+      /** Labels stop here so none of them lands on the caption. */
+      const labelFloor = by - 8 * chrome;
       const R = RELAXED_REFERENCE;
 
       // Interocular distance: the ruler everything else is measured against.
@@ -154,6 +185,7 @@ export const FaceOverlay = ({
         Math.max(p.leftEye.outer.y, p.rightEye.outer.y) + 30 * scale,
         scale,
         'center',
+        labelFloor,
       );
 
       // Eye aperture, both sides.
@@ -165,9 +197,10 @@ export const FaceOverlay = ({
         ctx,
         `eye aperture ${assessment.measures.eyeAperture.toFixed(3)}`,
         p.rightEye.outer.x + 10 * scale,
-        p.rightEye.bottom.y + 34 * scale,
+        p.rightEye.bottom.y + 62 * scale,
         scale,
         'left',
+        labelFloor,
       );
 
       // Brow to eyelid, drawn dashed because it is the weak measure.
@@ -182,6 +215,7 @@ export const FaceOverlay = ({
         p.leftEye.brow.y - 4 * scale,
         scale,
         'right',
+        labelFloor,
       );
 
       // Mouth opening and width.
@@ -194,6 +228,7 @@ export const FaceOverlay = ({
         p.mouth.bottom.y + 22 * scale,
         scale,
         'left',
+        labelFloor,
       );
 
       for (const q of [
@@ -211,37 +246,33 @@ export const FaceOverlay = ({
 
       // The headline, bottom left, with the caveat it must never lose.
       const status = STATUS[STATUS_FOR_LEVEL[assessment.facialTension]];
-      const boxH = 74 * scale;
-      const boxW = Math.min(canvas.width - 24 * scale, 480 * scale);
-      const bx = 12 * scale;
-      const by = canvas.height - boxH - 12 * scale;
 
       ctx.fillStyle = 'rgba(11,11,11,0.78)';
       ctx.beginPath();
-      ctx.roundRect(bx, by, boxW, boxH, 8 * scale);
+      ctx.roundRect(bx, by, boxW, boxH, 8 * chrome);
       ctx.fill();
 
       ctx.fillStyle = status;
       ctx.beginPath();
-      ctx.roundRect(bx, by, 5 * scale, boxH, 8 * scale);
+      ctx.roundRect(bx, by, 5 * chrome, boxH, 8 * chrome);
       ctx.fill();
 
       ctx.fillStyle = '#ffffff';
       ctx.textBaseline = 'alphabetic';
-      ctx.font = `bold ${Math.round(24 * scale)}px system-ui, sans-serif`;
+      ctx.font = `bold ${Math.round(23 * chrome)}px system-ui, sans-serif`;
       ctx.fillText(
         `COMFORT facial tension ${assessment.facialTension}`,
-        bx + 16 * scale,
-        by + 30 * scale,
+        bx + 16 * chrome,
+        by + 29 * chrome,
       );
-      ctx.font = `${Math.round(14 * scale)}px system-ui, sans-serif`;
-      ctx.fillText(assessment.anchor, bx + 16 * scale, by + 50 * scale);
+      ctx.font = `${Math.round(13 * chrome)}px system-ui, sans-serif`;
+      ctx.fillText(assessment.anchor, bx + 16 * chrome, by + 48 * chrome);
       ctx.fillStyle = 'rgba(255,255,255,0.72)';
-      ctx.font = `${Math.round(12 * scale)}px system-ui, sans-serif`;
+      ctx.font = `${Math.round(11.5 * chrome)}px system-ui, sans-serif`;
       ctx.fillText(
         'Uncalibrated. Not for patient care. TENDER pre-release.',
-        bx + 16 * scale,
-        by + 66 * scale,
+        bx + 16 * chrome,
+        by + 64 * chrome,
       );
     };
     img.onerror = () => setError('The image could not be drawn onto the canvas.');

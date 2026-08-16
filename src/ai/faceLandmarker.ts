@@ -128,6 +128,17 @@ export interface FaceCrop {
   canvas: HTMLCanvasElement;
   /** Size of the face box in the ORIGINAL image, in pixels. */
   faceBoxPx: number;
+  /**
+   * Maps a point measured on the crop back to the original image:
+   * originalX = cropX * pxPerCropPx + offsetX.
+   *
+   * Without this the overlay draws crop-space coordinates onto the full-size
+   * photograph, which is exactly the wrong space and puts every mark in the
+   * wrong place.
+   */
+  offsetX: number;
+  offsetY: number;
+  pxPerCropPx: number;
 }
 
 /**
@@ -189,7 +200,33 @@ export const canonicaliseFace = (
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(source, cx - side / 2, cy - side / 2, side, side, 0, 0, targetPx, targetPx);
 
-  return { canvas, faceBoxPx };
+  return {
+    canvas,
+    faceBoxPx,
+    offsetX: cx - side / 2,
+    offsetY: cy - side / 2,
+    pxPerCropPx: side / targetPx,
+  };
+};
+
+/** Move measured points from crop space back into the original image. */
+export const mapPointsToOriginal = <T extends { x: number; y: number }>(
+  points: Record<string, Record<string, T> | T>,
+  crop: Pick<FaceCrop, 'offsetX' | 'offsetY' | 'pxPerCropPx'>,
+): void => {
+  const move = (pt: { x: number; y: number }) => {
+    pt.x = pt.x * crop.pxPerCropPx + crop.offsetX;
+    pt.y = pt.y * crop.pxPerCropPx + crop.offsetY;
+  };
+  for (const group of Object.values(points)) {
+    if (group && typeof group === 'object' && 'x' in group && 'y' in group) {
+      move(group as { x: number; y: number });
+    } else if (group && typeof group === 'object') {
+      for (const pt of Object.values(group as Record<string, T>)) {
+        if (pt && typeof pt === 'object' && 'x' in pt && 'y' in pt) move(pt);
+      }
+    }
+  }
 };
 
 /**

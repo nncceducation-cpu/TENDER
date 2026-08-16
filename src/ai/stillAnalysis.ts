@@ -2,6 +2,7 @@ import type { FaceLandmarkerService } from './faceLandmarker';
 import {
   assessFrameQuality,
   canonicaliseFace,
+  mapPointsToOriginal,
   CANONICAL_FACE_PX,
   STABILITY_FACE_PX,
 } from './faceLandmarker';
@@ -109,6 +110,16 @@ export const analyseStills = async (
     const useH = useResult === measured ? CANONICAL_FACE_PX : img.naturalHeight;
 
     const geometry = measureGeometry(useResult, useW, useH);
+
+    /**
+     * The ratios are scale-free and correct as measured. The points are not: they
+     * are in crop space, and the overlay draws them on the original photograph.
+     * Map them back before anyone tries to draw them.
+     */
+    if (geometry && crop && useResult === measured) {
+      mapPointsToOriginal(geometry.points as unknown as Record<string, Record<string, { x: number; y: number }>>, crop);
+    }
+
     const assessment = geometry ? readSingleImage(geometry) : null;
 
     // Third pass at a different scale, to find out whether the level is a fact
