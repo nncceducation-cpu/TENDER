@@ -405,6 +405,15 @@ export const REVIEW_FLAGS: ReviewFlag[] = [
       'Confirm the postmenstrual age breakpoints and the daily maxima, or point to the local monograph they should come from.',
   },
   {
+    id: 'eye-squeeze-gate',
+    severity: 'high',
+    where: 'RELAXED_REFERENCE.eyeSqueezeFloor and readSingleImage',
+    finding:
+      'Three photographs of calm, content infants each scored COMFORT facial tension 3 of 5, because an open mouth was counted as tension at full weight while the eyes were wide open. The module now requires eye squeeze before the mouth counts and caps the level at 2 when the eyes are clearly open, which follows NFCS, where eye squeeze is the discriminating action. That fixed three out of three false positives. It has not been tested against a single photograph of an infant in genuine pain, so the false negative rate is unknown, and the rule is capable of under-calling an infant who is in pain with the eyes open.',
+    question:
+      'Supply photographs of infants during a known noxious event so the false negative side can be measured. Until then, should the single-image route be available for clinical use at all, or restricted to the research protocol?',
+  },
+  {
     id: 'unimplemented-instruments',
     severity: 'medium',
     where: 'Instrument library',

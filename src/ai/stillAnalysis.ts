@@ -109,7 +109,18 @@ export const analyseStills = async (
     const useW = useResult === measured ? CANONICAL_FACE_PX : img.naturalWidth;
     const useH = useResult === measured ? CANONICAL_FACE_PX : img.naturalHeight;
 
-    const geometry = measureGeometry(useResult, useW, useH);
+    /**
+     * The quality gate existed and was never applied here.
+     *
+     * `assessFrameQuality` computes `usable` at 0.45 and the calibration path
+     * honours it, but the geometric single-image route did not, so a photograph
+     * scoring 0.30 with a 110-pixel face box still produced a confident COMFORT
+     * level. A reading taken from a face too small, too oblique or too dark to
+     * measure is worse than no reading, because it looks the same as a good one.
+     */
+    const qualityUsable = q.quality >= 0.45;
+
+    const geometry = qualityUsable ? measureGeometry(useResult, useW, useH) : null;
 
     /**
      * The ratios are scale-free and correct as measured. The points are not: they
@@ -142,6 +153,12 @@ export const analyseStills = async (
     const faceBoxPx = crop?.faceBoxPx ?? null;
     const problems = [...q.problems];
     let quality = q.quality;
+
+    if (!qualityUsable) {
+      problems.push(
+        `Frame quality ${q.quality.toFixed(2)} is below the 0.45 needed to measure this face. No level is offered, which is the correct output rather than a missing one.`,
+      );
+    }
 
     // Upsampling a small face box to 512 does not create detail it never had.
     if (faceBoxPx !== null && faceBoxPx < 220) {

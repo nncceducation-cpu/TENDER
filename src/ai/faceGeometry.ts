@@ -184,10 +184,27 @@ export const RELAXED_REFERENCE = {
   mouthClosed: 0.02,
   /** Lip separation at or above this is a wide, sustained mouth opening. */
   mouthWideOpen: 0.35,
-  /** Brow-to-eye at or above this is an unlowered brow. */
-  browNeutral: 0.28,
+  /**
+   * Brow-to-eye at or above this is an unlowered brow.
+   *
+   * Was 0.28, which was wrong. Three calm infants measured on 18 August 2026
+   * read 0.221, 0.224 and 0.252, so every one of them was scored as 20 to 42
+   * per cent brow-lowered while lying there content. A resting neonatal brow
+   * evidently sits lower relative to interocular distance than the adult
+   * geometry this number came from.
+   *
+   * 0.24 is set from those three observations. Three is not a cohort, and this
+   * remains the least trustworthy number in the module.
+   */
+  browNeutral: 0.24,
   /** At or below this the brow is markedly lowered toward the eye. */
   browLowered: 0.14,
+  /**
+   * Above this eye tension the eyes are no longer clearly open, and mouth
+   * opening starts to carry information about tension rather than about
+   * feeding, yawning, vocalising or smiling.
+   */
+  eyeSqueezeFloor: 0.25,
 } as const;
 
 const band = (value: number, high: number, low: number): number => {
@@ -201,29 +218,51 @@ export const readSingleImage = (m: GeometryMeasures): SingleImageAssessment => {
 
   const eyeTension = band(m.eyeAperture, R.eyeApertureOpen, R.eyeApertureClosed);
   const browTension = band(m.browToEye, R.browNeutral, R.browLowered);
-  const mouthTension = Math.max(
+  const mouthOpen = Math.max(
     0,
     Math.min(1, (m.mouthOpening - R.mouthClosed) / (R.mouthWideOpen - R.mouthClosed)),
   );
+
+  /**
+   * An open mouth is not a pain sign on its own, and treating it as one was the
+   * single largest error in this module.
+   *
+   * Tested against three photographs of calm, content infants, every one scored
+   * COMFORT facial tension 3 of 5. In all three the mouth was open and carried
+   * 46 to 56 per cent of the reading at full weight, while the eyes were wide
+   * open. A smile, a yawn, a vocalisation, a feeding cue and a pain grimace all
+   * open the mouth; what separates the last one is the eyes.
+   *
+   * NFCS says the same thing. The pain constellation is brow bulge, eye squeeze
+   * and nasolabial furrow together, and eye squeeze is the most discriminating
+   * of the three. An infant with wide open eyes is not making a pain face,
+   * whatever the mouth is doing. So mouth opening only enters the tension
+   * calculation once the eyes are no longer clearly open, and until then it is
+   * reported as a measurement rather than counted as tension.
+   */
+  const eyesClearlyOpen = eyeTension < R.eyeSqueezeFloor;
+  const mouthTension = eyesClearlyOpen ? 0 : mouthOpen;
 
   const regions: RegionReading[] = [
     {
       region: 'Eyes',
       tension: eyeTension,
       reliability: 'good',
-      reading: `Aperture ${m.eyeAperture.toFixed(3)} of interocular distance. An open, relaxed eye sits near ${R.eyeApertureOpen}; a squeezed eye approaches zero.`,
+      reading: `Aperture ${m.eyeAperture.toFixed(3)} of interocular distance. An open, relaxed eye sits near ${R.eyeApertureOpen}; a squeezed eye approaches zero. This is the measure that separates a pain grimace from a yawn or a smile.`,
     },
     {
       region: 'Mouth',
       tension: mouthTension,
-      reliability: 'good',
-      reading: `Lip separation ${m.mouthOpening.toFixed(3)} of interocular distance, width ${m.mouthWidth.toFixed(3)}. Lips together is below ${R.mouthClosed}.`,
+      reliability: 'moderate',
+      reading: eyesClearlyOpen
+        ? `Lip separation ${m.mouthOpening.toFixed(3)} of interocular distance, ${(mouthOpen * 100).toFixed(0)}% of the way to a wide opening. Not counted as tension here, because the eyes are open and an open mouth with open eyes is a yawn, a vocalisation or a smile at least as often as it is pain.`
+        : `Lip separation ${m.mouthOpening.toFixed(3)} of interocular distance, width ${m.mouthWidth.toFixed(3)}. Counted, because the eyes are not clearly open.`,
     },
     {
       region: 'Brow',
       tension: browTension,
       reliability: 'weak',
-      reading: `Brow sits ${m.browToEye.toFixed(3)} of interocular distance above the eyelid. Resting brow height differs genuinely between infants, so read this one with the least confidence.`,
+      reading: `Brow sits ${m.browToEye.toFixed(3)} of interocular distance above the eyelid, against a resting reference of ${R.browNeutral} set from three calm infants. Resting brow height differs genuinely between infants, so read this one with the least confidence.`,
     },
   ];
 
@@ -237,13 +276,23 @@ export const readSingleImage = (m: GeometryMeasures): SingleImageAssessment => {
    * Level 1 is never produced. Total relaxation is an absence, and an absence
    * cannot be established from a single frame: an infant caught mid-blink and an
    * infant with a relaxed face are not distinguishable in one photograph.
+   *
+   * The boundaries below were raised. Level 3 previously began at 15 per cent
+   * weighted tension and swallowed everything up to 40, which is how three
+   * content infants all landed on "tension evident in some facial muscles".
    */
-  const tenseRegions = regions.filter((r) => r.tension >= 0.35).length;
   let level: 1 | 2 | 3 | 4 | 5;
-  if (overallTension < 0.15) level = 2;
-  else if (overallTension < 0.4 || tenseRegions <= 1) level = 3;
-  else if (overallTension < 0.7) level = 4;
+  if (overallTension < 0.25) level = 2;
+  else if (overallTension < 0.5) level = 3;
+  else if (overallTension < 0.75) level = 4;
   else level = 5;
+
+  /**
+   * And a hard ceiling. With the eyes clearly open there is no eye squeeze, so
+   * the NFCS pain constellation is not present and no amount of brow or mouth
+   * arithmetic should push this above normal facial tone.
+   */
+  if (eyesClearlyOpen && level > 2) level = 2;
 
   const caveats = [
     'Uncalibrated. No settled reference for this infant was supplied, so this reading uses geometry normalised to interocular distance rather than to this infant\'s own resting face.',
@@ -255,6 +304,11 @@ export const readSingleImage = (m: GeometryMeasures): SingleImageAssessment => {
   if (m.faceProportion < 1.0 || m.faceProportion > 2.2) {
     caveats.push(
       `Face proportions look unusual for a frontal view (height ${m.faceProportion.toFixed(2)} of interocular distance). The head may be turned or tilted, which distorts every measure above.`,
+    );
+  }
+  if (eyesClearlyOpen) {
+    caveats.push(
+      'The eyes are clearly open, so the level is capped at 2. Eye squeeze is the discriminating action in the NFCS pain constellation, and without it an open mouth or a lowered brow is not read as a pain face. The cost of that rule is the opposite error: an infant in genuine pain whose eyes stay open will be under-called here. Do not use this reading to rule pain out.',
     );
   }
   if (m.eyeAperture <= RELAXED_REFERENCE.eyeApertureClosed) {
