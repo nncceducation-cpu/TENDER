@@ -4,6 +4,8 @@ import { DashboardScreen } from './components/DashboardScreen';
 import { ContextScreen } from './components/ContextScreen';
 import { StaticAnalysisScreen, LiveVideoScreen } from './components/CaptureScreens';
 import { AssessScreen } from './components/AssessScreen';
+import { ComfortScreen } from './components/ComfortScreen';
+import { PhysiologyScreen } from './components/PhysiologyScreen';
 import { OrdersScreen, WeanScreen } from './components/OrdersWeanScreens';
 import { ConverterScreen } from './components/ConverterScreen';
 import { ProtocolScreen, TrendScreen } from './components/ProtocolTrendScreens';
@@ -15,10 +17,12 @@ const SCREENS: Record<Screen, () => React.ReactElement> = {
   image: StaticAnalysisScreen,
   live: LiveVideoScreen,
   assess: AssessScreen,
+  comfort: ComfortScreen,
   orders: OrdersScreen,
   wean: WeanScreen,
   converter: ConverterScreen,
   trend: TrendScreen,
+  physiology: PhysiologyScreen,
   protocol: ProtocolScreen,
 };
 

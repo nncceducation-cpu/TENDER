@@ -71,6 +71,7 @@ export type PainConstruct =
   | 'sedation_adequacy';
 
 export type ScaleId =
+  | 'CRIES'
   | 'NIPS'
   | 'PIPP_R'
   | 'N_PASS'
@@ -313,4 +314,22 @@ export interface FacialReading {
   /** Face box in the original image, in pixels. Precision depends on it. */
   faceBoxPx: number | null;
   scoredBy: string;
+}
+
+/**
+ * A record that the multisensorial comfort checklist was worked through.
+ *
+ * The pathway asks for the checklist twice in its escalation column and the
+ * chart has no way to show it happened. This makes it a recorded event with a
+ * time, so "comfort measures first, then rescore" can be verified rather than
+ * assumed, and so a score taken shortly afterwards can be read in that light.
+ */
+export interface ComfortEvent {
+  at: string;
+  /** Ids from COMFORT_MEASURES. */
+  measures: string[];
+  /** True when at least one measure given is known to blunt behaviour. */
+  bluntsBehaviour: boolean;
+  note: string;
+  recordedBy: string;
 }

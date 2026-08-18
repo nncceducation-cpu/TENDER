@@ -5,6 +5,7 @@ import { useStore } from '../state/store';
 import { Button, Callout, Card, Stat } from './ui';
 import { PROTOCOL_VERSION, REVIEW_FLAGS } from '../data/protocol/ach';
 import { PAIN_SCALES, WAT_1 } from '../data/scales';
+import { NOT_IMPLEMENTED } from '../data/scales/notImplemented';
 import { buildSessionReport } from '../state/report';
 import {
   assessmentsToCsv, downloadText, framesToCsv, readingsToCsv,
@@ -67,6 +68,28 @@ export const ProtocolScreen = () => (
       </div>
     </Card>
 
+    <Card title="Instruments named but not scored here">
+      <p className="text-sm text-slate-600 mb-3">
+        Both are real and both are relevant. Neither ships, because shipping an
+        instrument means shipping its item definitions and anchors, and reproducing
+        those from recollection rather than from the licensed table is the failure this
+        codebase was built to avoid.
+      </p>
+      <div className="space-y-3">
+        {NOT_IMPLEMENTED.map((u) => (
+          <div key={u.name} className="border-b border-slate-100 pb-3 last:border-0">
+            <p className="font-semibold text-slate-800 text-sm">
+              {u.name} <span className="font-normal text-slate-500">— {u.fullName}</span>
+            </p>
+            <p className="text-xs text-slate-600 mt-0.5">
+              {u.shape}. {u.bestFor}. {u.population}.
+            </p>
+            <p className="text-sm text-slate-700 mt-1">{u.whyNotHere}</p>
+          </div>
+        ))}
+      </div>
+    </Card>
+
     <Card title="Instrument library">
       <div className="space-y-4">
         {[...PAIN_SCALES, WAT_1].map((s) => (
@@ -114,6 +137,7 @@ export const TrendScreen = () => {
       clinician: s.clinician,
       assessments,
       facialReadings: s.facialReadings,
+      comfortEvents: s.comfortEvents,
       audit: s.audit.all(),
     });
     doc.save(`tender-report-${s.ctx.localId || 'unidentified'}-${Date.now()}.pdf`);

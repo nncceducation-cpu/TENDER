@@ -1,15 +1,24 @@
 import { useMemo, useState } from 'react';
-import { Activity, BookOpen, Sparkles, Stethoscope } from 'lucide-react';
+import { Activity, BookOpen, HandHeart, Sparkles, Stethoscope } from 'lucide-react';
 import { useStore } from '../state/store';
 import { Button, Callout, Card, Field, Stat, inputClass } from './ui';
 import { SCALES } from '../data/scales';
 import { recommendScales } from '../engine/scaleSelector';
 import { applicableItems, scoreAssessment, IncompleteAssessmentError } from '../engine/scoring';
 import { countConsecutiveElevated, decideEscalation } from '../engine/protocolEngine';
+import { BLUNTING_CAVEAT, BLUNTING_FOLLOWS } from '../data/physiology/comfort';
 import type { PainConstruct, ScaleId, ScoredItem } from '../domain/types';
 
 /** How long a capture window stays a fair description of the infant. */
 const STALE_MINUTES = 10;
+
+/**
+ * How long after a behaviour-blunting comfort measure a score should be read in
+ * that light. Sucrose's measured effect on PIPP is reported at 30 seconds; the
+ * window here is deliberately generous, because the point is to prompt a thought
+ * rather than to assert a pharmacokinetic boundary.
+ */
+const BLUNTING_WINDOW_MINUTES = 30;
 
 const CONSTRUCTS: { id: PainConstruct; label: string; blurb: string }[] = [
   {
@@ -97,6 +106,19 @@ export const AssessScreen = () => {
       );
     }
   };
+
+  /**
+   * A behavioural score taken shortly after a sweet solution is not measuring what
+   * it usually measures. Sucrose lowers PIPP by about 1.7 points while spinal
+   * reflex and noxious-evoked cortical activity may not fall with it, so the
+   * window matters and the clinician should see it before recording a total.
+   */
+  const lastComfort = s.comfortEvents.at(-1);
+  const bluntingWindow =
+    lastComfort && lastComfort.bluntsBehaviour
+      ? (Date.now() - new Date(lastComfort.at).getTime()) / 60000
+      : null;
+  const scoreIsBlunted = bluntingWindow !== null && bluntingWindow <= BLUNTING_WINDOW_MINUTES;
 
   const latest = s.assessments.at(-1);
   const latestNpass = [...s.assessments].reverse().find((a) => a.scaleId === 'N_PASS');
@@ -216,6 +238,22 @@ export const AssessScreen = () => {
 
       <Card title={`${scale.name} scoring`} icon={<Activity className="w-5 h-5 text-sky-700" />}>
         <div className="space-y-4">
+          {scoreIsBlunted && (
+            <Callout
+              tone="warn"
+              title={`A behaviour-blunting measure was given ${Math.round(bluntingWindow!)} minute${
+                Math.round(bluntingWindow!) === 1 ? '' : 's'
+              } ago`}
+            >
+              <p>{BLUNTING_CAVEAT}</p>
+              <p className="mt-2">{BLUNTING_FOLLOWS}</p>
+              <p className="mt-2 text-xs">
+                Recorded at {new Date(lastComfort!.at).toLocaleTimeString()}:{' '}
+                {lastComfort!.measures.join(', ')}. Score the infant as you find them; this
+                note exists so the number is read in context, not so it is adjusted.
+              </p>
+            </Callout>
+          )}
           {evidence && Object.keys(evidence.suggestions).length > 0 && (
             <Callout tone={evidenceStale ? 'warn' : 'info'} title="Model suggestions available">
               <p>
@@ -373,6 +411,27 @@ export const AssessScreen = () => {
               ))}
             </ul>
           )}
+
+          {/*
+            The pathway names the comfort checklist in both elevated bands. Until
+            now that instruction had nowhere to go, which made the most
+            evidence-backed step in the pathway the only one with no button.
+          */}
+          <div className="flex flex-wrap items-center gap-3">
+              <Button variant="ghost" onClick={() => s.setScreen('comfort')}>
+                <HandHeart className="w-4 h-4" /> Open the comfort checklist
+              </Button>
+              {lastComfort ? (
+                <span className="text-xs text-slate-600">
+                  Last recorded {new Date(lastComfort.at).toLocaleTimeString()}:{' '}
+                  {lastComfort.measures.join(', ')}.
+                </span>
+              ) : (
+                <span className="text-xs" style={{ color: '#92400e' }}>
+                  No checklist recorded this session.
+                </span>
+              )}
+          </div>
         </div>
       </Card>
     </div>

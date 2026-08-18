@@ -38,6 +38,21 @@ export const recommendScales = (
     const gaWeeks =
       ctx.gestationalAgeAtBirth.weeks + ctx.gestationalAgeAtBirth.days / 7;
 
+    /**
+     * CRIES was developed and validated from 32 weeks. Below that it is not an
+     * option, and saying so is more useful than quietly ranking it last.
+     */
+    if (scale.id === 'CRIES') {
+      if (gaWeeks < 32) {
+        blockers.push('Not validated below 32 weeks gestation.');
+        score -= 100;
+      } else {
+        reasons.push(
+          'Developed specifically for postoperative pain from 32 weeks, which is this indication.',
+        );
+      }
+    }
+
     // Gestational-age correction matters most at the extremes of prematurity.
     if (gaWeeks < 32) {
       if (scale.id === 'PIPP_R' || scale.id === 'N_PASS') {

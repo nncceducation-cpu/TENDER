@@ -379,6 +379,107 @@ believes the problem now sits.
 > Artificial intelligence based pain assessment technology in clinical application
 > of real-world neonatal blood sampling. PMC9406884.
 
+### Developmental neurophysiology: why the correction exists
+
+Added in August 2026 from the unit's own teaching reference, "Human Pain: Anatomy
+and Physiology" (K. Mohammad, Section of Newborn Critical Care, Cumming School of
+Medicine, University of Calgary), whose records are verified against PubMed. The
+material is now surfaced in the application on the Pain physiology screen rather
+than living only here, because the two behaviours it justifies are the two a
+clinician is most likely to question at the bedside.
+
+**Excitation arrives early, the brake arrives late.** First sensory and
+nociceptive CGRP fibres appear in skin at 6 to 7 weeks. The spinal reflex arc is
+functional at 7 to 8. Excitatory transmitters are in the cord from 8 to 16 weeks,
+and pain fibre density approaches adult levels by 19 to 20. Thalamocortical axons
+penetrate cortex at 23 to 25 weeks, which is where this unit's smallest patients
+sit. Descending monoaminergic modulators do not appear until 34 to 38 weeks, with
+serotonin postnatal, and the transmitters approach maturity only around 48 weeks.
+
+That ordering is the whole argument for the gestational-age correction. Before the
+descending system matures it is anatomically present but **functionally net
+facilitatory**: the brake can push. An infant at 26 weeks is not a smaller version
+of an infant at 40 weeks with a proportionally smaller response; the circuit is
+differently wired.
+
+**Seven differences from the adult dorsal horn**, all in the direction of more
+input and less control: lower cutaneous reflex threshold falling further with
+earlier postmenstrual age, large overlapping receptive fields so localisation is
+poor, A-fibre dominated input so tactile stimulation can drive nociceptive
+circuits, diffusely targeted inhibitory interneurons, net facilitatory descending
+control, generalised rather than localised withdrawal, and **sensitisation rather
+than habituation on repetition**. The last one matters operationally: the tenth
+heel lance is not the first, and a rising score across a shift is the expected
+physiology rather than a scoring error.
+
+**Repeated procedural pain leaves a mark.** In very preterm neonates cumulative
+skin-breaking procedures are associated with slower thalamic growth on serial MRI,
+altered thalamocortical microstructure, and cognitive and motor scores at three
+years corrected age. Preclinically, nerve injury at postnatal day 10 produces
+mechanical hypersensitivity that only emerges weeks later.
+
+### The measurement problem, stated by the instrument's own users
+
+This belongs here because it is the strongest argument against over-trusting any
+score this application produces, automated or not.
+
+> Behavioural scores fall when sucrose is given. Spinal reflex activity and
+> noxious-evoked cortical activity may not fall with them. A quiet baby is not
+> necessarily a baby without nociception.
+
+What follows is that a low score is not proof of comfort in a paralysed,
+ventilated or extremely preterm infant, because the behavioural repertoire the
+scale measures is exactly what illness and immaturity remove. What does not follow
+is any argument against sucrose or against scoring. The application implements the
+distinction directly: a behaviour-blunting measure recorded within 30 minutes puts
+the caveat on the scoring screen, and the instruction is to score the infant as
+found rather than to adjust the number.
+
+### Non-pharmacological analgesia, with magnitudes
+
+The ACH pathway instructs "complete the multisensorial checklist" at both elevated
+escalation bands and never enumerates it. The checklist now ships, with the
+mechanism and the reported magnitude attached to each measure.
+
+| Intervention | Reported effect | Certainty |
+| --- | --- | --- |
+| Sucrose | PIPP falls ~1.7 points at 30 s after heel lance; pooled -1.74 (95% CI -2.11 to -1.37), I² 62% | High for the Cochrane heel-lance comparison |
+| Sucrose with non-nutritive sucking | Superior to either alone, SMD -1.39 to -1.69 | Not stated |
+| Non-nutritive sucking | Pain reactivity SMD -1.13 in term infants, top-ranked single intervention | Very low |
+| Breastfeeding | Crying reduced by 36 s, NIPS -2.5, approximately equal to sucrose | Moderate to low |
+| Facilitated tucking, swaddling | Shorter cry duration, better heart rate stability | Very low |
+| Kangaroo care | Less pain, faster recovery, sustained across repeated procedures | Low to moderate |
+| Familiar odour | Effective and safe | Low to moderate |
+
+These are not comfort theatre. They add competing non-noxious afferent traffic and
+recruit the same inhibitory machinery a drug would target, which is the gate
+control mechanism operating exactly as described.
+
+**Pre-emptive beats reactive.** Analgesia given before tissue injury outperforms
+the same drug given after, because sensitisation is easier to prevent than to
+reverse.
+
+### Drugs, and the outcome data on both sides
+
+Acetaminophen has **no procedural benefit**, is inferior to glucose or sucrose for
+procedures, and may worsen the later response; its role is opioid-sparing after
+surgery, which is exactly and only how the ACH pathway uses it. Topical
+lidocaine-prilocaine works for circumcision, venepuncture and lumbar puncture but
+not for heel lance. Opioids give a modest reduction in PIPP and NIPS with no
+benefit beyond the procedure itself.
+
+On the other side of the ledger: short iatrogenic courses of 7 days or less show
+no clear impairment at very low certainty, while prolonged or high cumulative
+exposure is associated with lower motor scores and possible cognitive and language
+deficits, confounded by illness severity and ventilation. NEOPAIN found that a
+randomised pre-emptive morphine infusion did not reduce death, severe IVH or PVL,
+and caused hypotension, longer ventilation and delayed feeds, which is why there is
+no routine pre-emptive infusion. High cumulative fentanyl is associated with
+reduced cerebellar growth in observational work.
+
+Untreated pain carries risk and so does the treatment. The application shows both
+rather than either.
+
 ### Physiological indices
 
 The NIPE monitor (Newborn Infant Parasympathetic Evaluation) derives an index from
@@ -540,3 +641,30 @@ acquisition system.
 - [Beyond the face: advancing multimodal AI for neonatal pain assessment — Pediatr Res 2026](https://www.nature.com/articles/s41390-026-04888-7)
 - [Continuous wireless sensor monitoring: Clinical and Automated Sensor Pain Scales in the NICU](https://pmc.ncbi.nlm.nih.gov/articles/PMC12658508/)
 - [AI-based pain assessment in real-world neonatal blood sampling](https://pmc.ncbi.nlm.nih.gov/articles/PMC9406884/)
+
+### Developmental neurophysiology and neonatal analgesia
+
+From "Human Pain: Anatomy and Physiology", K. Mohammad, University of Calgary.
+Vancouver style, records verified against PubMed by the source author.
+
+1. Raja SN, et al. Pain. 2020;161(9):1976-82. doi:10.1097/j.pain.0000000000001939
+2. Basbaum AI, Bautista DM, Scherrer G, Julius D. Cell. 2009;139(2):267-84. doi:10.1016/j.cell.2009.09.028
+3. Todd AJ. Nat Rev Neurosci. 2010;11(12):823-36. doi:10.1038/nrn2947
+4. Melzack R, Wall PD. Science. 1965;150(3699):971-9. doi:10.1126/science.150.3699.971
+5. Fitzgerald M. Nat Rev Neurosci. 2005;6(7):507-20. doi:10.1038/nrn1701
+6. Fitzgerald M. J Physiol. 2024;602(6):1003-16. doi:10.1113/JP283994
+7. Fitzgerald M. Exp Physiol. 2015;100(12):1451-7. doi:10.1113/EP085134
+8. Koch SC, Fitzgerald M. Ann N Y Acad Sci. 2013;1279:97-102. doi:10.1111/nyas.12033
+9. Anand KJ, Hickey PR. N Engl J Med. 1987;317(21):1321-9. doi:10.1056/NEJM198711193172105
+10. Walker SM. Clin Perinatol. 2013;40(3):471-91. doi:10.1016/j.clp.2013.05.002
+11. Walker SM. Semin Fetal Neonatal Med. 2019;24(4):101005. doi:10.1016/j.siny.2019.04.005
+12. Duerden EG, et al. J Neurosci. 2018;38(4):878-86. doi:10.1523/JNEUROSCI.0867-17.2017
+13. Ranger M, Grunau RE. Pain Manag. 2014;4(1):57-67. doi:10.2217/pmt.13.61
+14. Stevens B, et al. Cochrane Database Syst Rev. 2016;7(7):CD001069. doi:10.1002/14651858.CD001069.pub5
+15. Committee on Fetus and Newborn. Pediatrics. 2016;137(2):e20154271. doi:10.1542/peds.2015-4271
+16. Vega-Avelaira D, et al. Mol Pain. 2012;8:30. doi:10.1186/1744-8069-8-30
+17. La Hausse de Lalouviere L, Ioannou Y, Fitzgerald M. Nat Rev Rheumatol. 2014;10(4):205-11. doi:10.1038/nrrheum.2014.4
+18. Holsti L, Grunau RE. Pediatrics. 2010;125(5):1042-7. doi:10.1542/peds.2009-2445
+19. Ben-Ari Y. Nat Rev Neurosci. 2002;3(9):728-39. doi:10.1038/nrn920
+20. Tyzio R, et al. Science. 2006;314(5806):1788-92. doi:10.1126/science.1133212
+21. Krechel SW, Bildner J. Paediatr Anaesth. 1995;5(1):53-61. doi:10.1111/j.1460-9592.1995.tb00242.x

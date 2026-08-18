@@ -1,6 +1,8 @@
 import {
   ArrowLeftRight,
   Baby,
+  Brain,
+  HandHeart,
   Camera,
   Clock,
   LayoutDashboard,
@@ -65,6 +67,13 @@ export const SCREEN_META: Record<Screen, ScreenMeta> = {
     subtitle: 'The scored total, and what the protocol says to do about it',
     icon: Stethoscope,
   },
+  comfort: {
+    nav: 'Comfort measures',
+    title: 'Multisensorial comfort checklist',
+    subtitle: 'First line, and what the pathway asks for before any drug',
+    badge: 'First line',
+    icon: HandHeart,
+  },
   orders: {
     nav: 'Post-op orders',
     title: 'Post-operative orders',
@@ -89,6 +98,12 @@ export const SCREEN_META: Record<Screen, ScreenMeta> = {
     subtitle: 'Everything recorded this session',
     icon: LineChart,
   },
+  physiology: {
+    nav: 'Pain physiology',
+    title: 'Pain physiology and the newborn',
+    subtitle: 'Why the correction exists, and why a quiet baby is not a comfortable one',
+    icon: Brain,
+  },
   protocol: {
     nav: 'Protocol & evidence',
     title: 'Protocol and evidence',
@@ -100,6 +115,6 @@ export const SCREEN_META: Record<Screen, ScreenMeta> = {
 export const NAV_GROUPS: { label: string; items: Screen[] }[] = [
   { label: 'Overview', items: ['dashboard', 'context'] },
   { label: 'Assessment', items: ['image', 'live', 'assess'] },
-  { label: 'Management', items: ['orders', 'wean', 'converter'] },
-  { label: 'Record', items: ['trend', 'protocol'] },
+  { label: 'Management', items: ['comfort', 'orders', 'wean', 'converter'] },
+  { label: 'Record', items: ['trend', 'physiology', 'protocol'] },
 ];

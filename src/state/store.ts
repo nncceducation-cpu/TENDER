@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type {
   Assessment,
+  ComfortEvent,
   FacialReading,
   PatientContext,
   ScaleId,
@@ -19,10 +20,12 @@ export type Screen =
   | 'image'
   | 'live'
   | 'assess'
+  | 'comfort'
   | 'orders'
   | 'wean'
   | 'converter'
   | 'trend'
+  | 'physiology'
   | 'protocol';
 
 export const EMPTY_CONTEXT: PatientContext = {
@@ -60,6 +63,8 @@ interface AppState {
    * never totalled with them. See the FacialReading doc comment.
    */
   facialReadings: FacialReading[];
+  /** Times the comfort checklist was completed, with what was given. */
+  comfortEvents: ComfortEvent[];
   calibration: InfantCalibration | null;
   latestAiEvidence: AiEvidence | null;
   /**
@@ -82,6 +87,7 @@ interface AppState {
   setField: <K extends keyof AppState>(key: K, value: AppState[K]) => void;
   addAssessment: (a: Assessment) => void;
   addFacialReadings: (r: Omit<FacialReading, 'at' | 'scoredBy'>[]) => void;
+  recordComfort: (measures: string[], bluntsBehaviour: boolean, note: string) => void;
   clearFacialReadings: () => void;
   setCalibration: (c: InfantCalibration | null) => void;
   setAiEvidence: (e: AiEvidence | null) => void;
@@ -116,6 +122,7 @@ export const useStore = create<AppState>((set, get) => ({
   selectedScale: 'N_PASS',
   assessments: [],
   facialReadings: [],
+  comfortEvents: [],
   calibration: null,
   latestAiEvidence: null,
   proposedFacialTension: null,
@@ -161,6 +168,24 @@ export const useStore = create<AppState>((set, get) => ({
 
   clearFacialReadings: () => set({ facialReadings: [] }),
 
+  recordComfort: (measures, bluntsBehaviour, note) => {
+    const { audit, clinician } = get();
+    const at = new Date().toISOString();
+    void audit.append(
+      clinician || 'unattributed',
+      'comfort.checklist',
+      `Multisensorial comfort checklist completed with ${measures.length} measure(s): ${measures.join(', ')}${
+        bluntsBehaviour ? '. Includes a measure that blunts behaviour without necessarily reducing nociception' : ''
+      }.`,
+    );
+    set((s) => ({
+      comfortEvents: [
+        ...s.comfortEvents,
+        { at, measures, bluntsBehaviour, note, recordedBy: clinician || 'unattributed' },
+      ],
+    }));
+  },
+
   setCalibration: (calibration) => {
     const { audit, clinician } = get();
     if (calibration) {
@@ -191,6 +216,7 @@ export const useStore = create<AppState>((set, get) => ({
       postmenstrualAgeWeeks: 0,
       assessments: [],
       facialReadings: [],
+      comfortEvents: [],
       calibration: null,
       latestAiEvidence: null,
       proposedFacialTension: null,
@@ -227,6 +253,7 @@ export const useStore = create<AppState>((set, get) => ({
         },
         assessments: s.assessments,
         facialReadings: s.facialReadings,
+        comfortEvents: s.comfortEvents,
         calibration: s.calibration
           ? {
               createdAt: s.calibration.createdAt,

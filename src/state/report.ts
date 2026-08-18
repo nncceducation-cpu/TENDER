@@ -1,5 +1,11 @@
 import type { jsPDF } from 'jspdf';
-import type { Assessment, AuditEntry, FacialReading, PatientContext } from '../domain/types';
+import type {
+  Assessment,
+  AuditEntry,
+  ComfortEvent,
+  FacialReading,
+  PatientContext,
+} from '../domain/types';
 import { PROTOCOL_VERSION } from '../data/protocol/ach';
 import { SCALES } from '../data/scales';
 
@@ -24,6 +30,7 @@ interface ReportInput {
   assessments: Assessment[];
   /** Optional: absent in older callers and in the tests. */
   facialReadings?: FacialReading[];
+  comfortEvents?: ComfortEvent[];
   audit: readonly AuditEntry[];
 }
 
@@ -199,6 +206,34 @@ export const buildSessionReport = async (input: ReportInput): Promise<jsPDF> => 
       for (const r of s.references) muted(r.citation, 3);
       y += 3;
     }
+  }
+
+  // Comfort measures
+  const comfort = input.comfortEvents ?? [];
+  if (comfort.length > 0) {
+    heading(`Multisensorial comfort measures (${comfort.length})`);
+    muted(
+      'The pathway asks for the comfort checklist before any pharmacological step in the 4 to 6 band and alongside the dose in the 7 to 10 band. These entries are what was given and when.',
+    );
+    y += 2;
+    for (const c of comfort) {
+      need(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(...SLATE);
+      doc.text(`${new Date(c.at).toLocaleTimeString()} — ${c.recordedBy}`, M, y);
+      y += 4.6;
+      body(c.measures.join(', '), 3);
+      if (c.note) muted(c.note, 3);
+      if (c.bluntsBehaviour) {
+        muted(
+          'Includes a measure that lowers behavioural scores without necessarily reducing spinal or cortical nociceptive activity. Read any score taken shortly afterwards in that light.',
+          3,
+        );
+      }
+      y += 1.5;
+    }
+    y += 2;
   }
 
   // Facial tension readings

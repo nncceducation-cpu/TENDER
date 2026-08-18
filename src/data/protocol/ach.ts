@@ -30,11 +30,16 @@ export interface ProtocolVersion {
  */
 export const PROTOCOL_VERSION: ProtocolVersion = {
   id: 'ACH-NICU-POSTOP-OPIOID',
-  version: '2.3.0-draft',
+  version: '2.4.0-draft',
   effectiveDate: '2025-02-24',
   owner: 'Section of Newborn Critical Care, Alberta Children\'s Hospital',
   changelog: [
     { version: '1.0.0', date: '2025-02-01', note: 'Original protocol as encoded in PainWise NICU, PDSA cycle 2.' },
+    {
+      version: '2.4.0-draft',
+      date: '2026-08-16',
+      note: 'The multisensorial comfort checklist the pathway names twice and never enumerates now ships, with the mechanism and reported effect size on each measure, and completing it is recorded. Behaviour-blunting measures flag any score taken within 30 minutes. CRIES added for postoperative pain from 32 weeks. Developmental neurophysiology, drug cautions and the outcome evidence added from the unit teaching reference. FANS and BPSN are disclosed as named but not implemented rather than being reproduced from recollection.',
+    },
     {
       version: '2.3.0-draft',
       date: '2026-08-16',
@@ -398,6 +403,15 @@ export const REVIEW_FLAGS: ReviewFlag[] = [
       'The pathway prints acetaminophen IV 7.5 to 15 mg/kg/dose q6h, dose based on postmenstrual age, and gives no band breakpoints. The three bands in use, under 32 weeks at 7.5 mg/kg, under 37 at 10, and 37 or above at 15, were carried over from the PainWise NICU source and are not in the pathway document. The daily maxima are likewise carried over.',
     question:
       'Confirm the postmenstrual age breakpoints and the daily maxima, or point to the local monograph they should come from.',
+  },
+  {
+    id: 'unimplemented-instruments',
+    severity: 'medium',
+    where: 'Instrument library',
+    finding:
+      'FANS and BPSN are named in the unit teaching reference and are not implemented here. FANS in particular covers the case the facial coding abstains on, which is the face obscured by prongs, tape or prone positioning. Their item definitions were not reproduced because doing so from recollection rather than from the licensed table is the failure mode this codebase exists to avoid.',
+    question:
+      'Supply the licensed item tables for FANS and BPSN, or confirm the unit does not use them.',
   },
   {
     id: 'exposure-day-counter',

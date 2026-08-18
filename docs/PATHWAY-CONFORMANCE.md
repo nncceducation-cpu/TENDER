@@ -5,7 +5,7 @@ Pathway, Alberta Children's Hospital NICU, 24 February 2025.**
 
 Checked line by line against the code on 16 August 2026. This file records what
 matched, what did not, and what the pathway does not say. It is the audit trail for
-`PROTOCOL_VERSION` 2.3.0-draft.
+`PROTOCOL_VERSION` 2.4.0-draft.
 
 ---
 
@@ -128,6 +128,23 @@ and GIVE. That verb is the entire clinical difference between the two bands.
 The app had rendered the middle band as "give the PRN dose and pause the wean",
 which is upper-band language. Both bands now also print the return cadence the
 pathway specifies, N-PASS q3-6h with WAT-1 q12h if indicated.
+
+### 7. The comfort checklist the pathway names but never enumerates
+
+The escalation column instructs "COMPLETE multisensorial checklist" in the 4 to 6
+band and again in the 7 to 10 band. The document never says what is on it.
+
+The application repeated that instruction faithfully and also never said, which
+turned the most evidence-backed step in the whole pathway into a prompt to do
+something unspecified at the moment a nurse most needs to act. It is now a screen
+with the interventions enumerated, each carrying the stage of the nociceptive
+pathway it acts on and its reported magnitude, and completing it is recorded to the
+session, the audit trail, the PDF report and the JSON export. The middle band's
+instruction is "comfort measures first, then rescore", and a chart that cannot show
+the first half cannot support the second.
+
+Contents are from the unit's own teaching reference rather than invented. Where the
+pathway is silent on which measures, that is the source used, and it is named.
 
 ---
 

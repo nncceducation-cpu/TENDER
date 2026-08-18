@@ -73,6 +73,11 @@ export const OrdersScreen = () => {
                     Stop dexmedetomidine if it was started pre-operatively.
                   </p>
                 )}
+                <p className="mt-2 text-xs text-slate-600">
+                  Opioids reduce PIPP and NIPS modestly and give no benefit beyond the
+                  procedure itself. Watch for apnoea, respiratory depression, hypotension
+                  and chest wall rigidity with fentanyl.
+                </p>
               </div>
             )}
 
@@ -97,9 +102,22 @@ export const OrdersScreen = () => {
               </div>
               <p className="mt-2 text-xs text-slate-600">
                 IV for {doses.acetaminophen!.ivDurationHours} hours, then oral or rectal for{' '}
-                {doses.acetaminophen!.oralDurationHours} hours. The daily maximum is shown because the
-                protocol specifies a per-dose amount only.
+                {doses.acetaminophen!.oralDurationHours} hours, a{' '}
+                {POSTOP_DOSING.acetaminophenTotalCourseDays}-day scheduled course. The daily
+                maximum is shown because the protocol specifies a per-dose amount only.
               </p>
+              {/*
+                Where the pathway uses acetaminophen is exactly where the evidence
+                supports it, and nowhere else. Worth saying on the screen that
+                prints the dose, because the same drug on the same shelf is the
+                wrong answer for a heel lance.
+              */}
+              <Callout tone="info" title="Post-operative only">
+                Acetaminophen has no procedural benefit and is inferior to glucose or
+                sucrose for procedures, where it may worsen the later response. Its role
+                here is opioid-sparing after surgery, which is how this pathway uses it.
+                For a heel lance or venepuncture, use the comfort checklist.
+              </Callout>
             </div>
 
             <div>
@@ -241,6 +259,23 @@ export const WeanScreen = () => {
               <li key={n}>{n}</li>
             ))}
           </ul>
+
+          {/*
+            The reason to get the taper right is not tidiness. Long or high
+            cumulative exposure is where the outcome signal stops sitting near the
+            null, so the number on this screen is the one that matters.
+          */}
+          {s.opioidExposureDays > 7 && (
+            <Callout tone="warn" title={`Cumulative exposure is ${s.opioidExposureDays} days`}>
+              Short courses of 7 days or less show no clear neurodevelopmental
+              impairment, at very low certainty. Prolonged or high cumulative exposure is
+              associated with lower motor scores and possible cognitive and language
+              deficits, confounded by illness severity and ventilation, and high
+              cumulative fentanyl with reduced cerebellar growth in observational work.
+              Neither finding argues for under-treating pain; both argue for finishing
+              the taper rather than drifting on it.
+            </Callout>
+          )}
 
           {plan.wat1Required ? (
             <Callout tone="warn" title="WAT-1 required">
