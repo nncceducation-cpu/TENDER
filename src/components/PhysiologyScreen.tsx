@@ -2,13 +2,13 @@ import { Activity, Brain, Pill, TrendingUp } from 'lucide-react';
 import { useStore } from '../state/store';
 import { Card } from './ui';
 import { INK, STATUS } from './viz/tokens';
+import { MilestoneTimeline } from './viz/MilestoneTimeline';
 import {
   ADULT_VS_NEWBORN,
   CLOSING_LINES,
   CORE_CLAIM,
   DRUG_CAUTIONS,
   MECHANISM_TO_BEDSIDE,
-  MILESTONES,
   OUTCOME_EVIDENCE,
   SOURCE_NOTE,
 } from '../data/physiology/development';
@@ -59,39 +59,7 @@ export const PhysiologyScreen = () => {
           )}
         </p>
 
-        <ol className="relative border-l-2 ml-2" style={{ borderColor: INK.grid }}>
-          {MILESTONES.map((m) => {
-            const reached = hasPma && pma >= m.weeks;
-            const current = hasPma && pma >= m.weeks && pma < m.weeks + 4;
-            return (
-              <li key={m.age} className="ml-5 pb-4 last:pb-0">
-                <span
-                  className="absolute -left-[7px] w-3 h-3 rounded-full border-2 border-white"
-                  style={{ background: reached ? '#0f766e' : INK.baseline }}
-                />
-                <p className="text-sm font-semibold" style={{ color: INK.primary }}>
-                  {m.age}
-                  {current && (
-                    <span
-                      className="ml-2 text-[10px] px-1.5 py-0.5 rounded font-semibold"
-                      style={{ background: '#0f766e', color: '#fff' }}
-                    >
-                      this infant
-                    </span>
-                  )}
-                </p>
-                <p className="text-sm" style={{ color: INK.secondary }}>
-                  {m.event}
-                </p>
-                {m.bedside && (
-                  <p className="text-xs mt-1" style={{ color: INK.muted }}>
-                    {m.bedside}
-                  </p>
-                )}
-              </li>
-            );
-          })}
-        </ol>
+        <MilestoneTimeline pma={hasPma ? pma : null} />
       </Card>
 
       <Card

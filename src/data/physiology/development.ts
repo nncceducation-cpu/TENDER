@@ -14,7 +14,11 @@
 
 export interface Milestone {
   age: string;
-  /** Sort key in weeks, for ordering and for the age marker. */
+  /**
+   * The START of the range, in weeks. Start rather than midpoint, so the rail
+   * stays in the same order as the list and so "reached" means the milestone has
+   * begun rather than completed.
+   */
   weeks: number;
   event: string;
   /** Why it matters for someone scoring an infant at this age. */
@@ -22,31 +26,31 @@ export interface Milestone {
 }
 
 export const MILESTONES: Milestone[] = [
-  { age: '6 to 7 weeks', weeks: 6.5, event: 'First sensory nerve fibres and nociceptive CGRP fibres appear in skin.' },
+  { age: '6 to 7 weeks', weeks: 6, event: 'First sensory nerve fibres and nociceptive CGRP fibres appear in skin.' },
   {
     age: '7 to 8 weeks',
-    weeks: 7.5,
+    weeks: 7,
     event: 'Spinal reflex arc functional, withdrawal to touch.',
     bedside: 'Withdrawal needs no cortex. A limb that moves is not evidence of a felt experience, and a limb that does not is not evidence of its absence.',
   },
-  { age: '8 to 16 weeks', weeks: 12, event: 'Excitatory transmitters appear in the cord: substance P, CGRP, glutamate.' },
-  { age: '19 to 20 weeks', weeks: 19.5, event: 'Nociceptive neurons abundant, near-adult density of pain fibres.' },
-  { age: '20 to 22 weeks', weeks: 21, event: 'Thalamic fibres reach the subplate beneath somatosensory cortex.' },
+  { age: '8 to 16 weeks', weeks: 8, event: 'Excitatory transmitters appear in the cord: substance P, CGRP, glutamate.' },
+  { age: '19 to 20 weeks', weeks: 19, event: 'Nociceptive neurons abundant, near-adult density of pain fibres.' },
+  { age: '20 to 22 weeks', weeks: 20, event: 'Thalamic fibres reach the subplate beneath somatosensory cortex.' },
   {
     age: '23 to 25 weeks',
-    weeks: 24,
+    weeks: 23,
     event: 'Thalamocortical axons penetrate cortex, so noxious signals can reach cortical level.',
     bedside: 'The lower bound of the population this unit treats sits on this line.',
   },
   {
     age: '28 to 30 weeks',
-    weeks: 29,
+    weeks: 28,
     event: 'Facial and EEG responses to noxious stimuli emerge, but the cortical response is not yet modality specific.',
     bedside: 'Facial coding starts to carry information here. Below it, expect abstention rather than a low score.',
   },
   {
     age: '34 to 38 weeks',
-    weeks: 36,
+    weeks: 34,
     event: 'Descending monoaminergic modulators appear: noradrenaline then dopamine. Serotonin postnatally.',
     bedside: 'The brake is still arriving. Before this, descending control is anatomically present but functionally net facilitatory.',
   },
