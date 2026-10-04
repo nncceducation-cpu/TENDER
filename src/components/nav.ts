@@ -48,9 +48,9 @@ export const SCREEN_META: Record<Screen, ScreenMeta> = {
     icon: Baby,
   },
   image: {
-    nav: 'Static analysis',
-    title: 'Static facial analysis',
-    subtitle: 'Facial geometry and NFCS actions from photographs, on device',
+    nav: 'Photo review',
+    title: 'Photo description and facial item',
+    subtitle: 'AI photo review, with optional local measurements',
     badge: 'Face',
     icon: ScanFace,
   },

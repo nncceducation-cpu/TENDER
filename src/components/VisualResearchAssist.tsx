@@ -82,7 +82,7 @@ export const VisualResearchAssist = () => {
       <Callout tone="warn" title="Investigational photo review">
         Describe visible expression and suggest a facial tension item without a baseline. This is not a complete pain score or a validated neonatal pain detector. No clinical accuracy percentage has been established.
       </Callout>
-      <details>
+      <details open>
         <summary className="cursor-pointer font-medium">Connect your visual server</summary>
         <div className="grid sm:grid-cols-2 gap-3 mt-3">
           <Field label="Trusted server address"><input className={inputClass} type="url" placeholder="https://your-service.onrender.com" value={endpoint} disabled={busy} onChange={e => setEndpoint(e.target.value)} /></Field>
