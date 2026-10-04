@@ -117,7 +117,7 @@ const RailFooter = () => (
       </span>
     </p>
     <p className="text-[11px] mt-0.5" style={{ color: '#64748b' }}>
-      {PROTOCOL_VERSION.version} · pre-release
+      {PROTOCOL_VERSION.version} · research use
     </p>
   </div>
 );

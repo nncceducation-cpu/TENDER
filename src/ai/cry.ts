@@ -152,6 +152,7 @@ export class CryAnalyser {
  * the measured values.
  */
 export const detectF0 = (buffer: Float32Array, sampleRate: number): number | null => {
+  if (!Number.isFinite(sampleRate) || sampleRate <= 0 || buffer.some(x => !Number.isFinite(x))) return null;
   const minLag = Math.floor(sampleRate / NEONATAL_F0_MAX_HZ);
   const maxLag = Math.floor(sampleRate / NEONATAL_F0_MIN_HZ);
   if (maxLag >= buffer.length) return null;
@@ -210,6 +211,15 @@ export const detectF0 = (buffer: Float32Array, sampleRate: number): number | nul
     return null;
   }
 
+  // Third and higher multiples can also land in-band. Find a shorter-period
+  // peak, excluding the rising correlation near zero lag.
+  const detectedCorrelation = normalisedCorrelation(buffer, bestLag);
+  for (let lag = 2; lag < minLag; lag++) {
+    const peak = normalisedCorrelation(buffer, lag);
+    if (peak >= 0.8 * detectedCorrelation &&
+        peak > normalisedCorrelation(buffer, lag - 1) &&
+        peak >= normalisedCorrelation(buffer, lag + 1)) return null;
+  }
   return sampleRate / bestLag;
 };
 

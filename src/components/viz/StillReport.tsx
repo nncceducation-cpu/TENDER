@@ -44,9 +44,11 @@ export const StillReport = ({
           {d.frame.name}
         </p>
         <p className="text-sm mt-1" style={{ color: INK.secondary }}>
-          Landmarks were insufficient to measure this face geometrically. No level is
-          offered, which is the correct output rather than a missing one.
+          No facial level is offered for this image.
         </p>
+        <ul className="text-xs list-disc list-inside mt-2">
+          {(d.frame.problems.length ? d.frame.problems : [d.frame.faceFound ? "Landmarks were insufficient or quality was too low." : "No face detected."]).map(problem => <li key={problem}>{problem}</li>)}
+        </ul>
       </div>
     );
   }
@@ -67,7 +69,7 @@ export const StillReport = ({
       >
         <CircleCheck className="w-[18px] h-[18px]" style={{ color: '#0f766e' }} />
         <p className="font-semibold text-sm flex-1 truncate" style={{ color: INK.primary }}>
-          Clinical report
+          Facial analysis report
         </p>
         <span className="text-xs truncate max-w-[45%]" style={{ color: INK.muted }}>
           {d.frame.name}
@@ -160,7 +162,7 @@ export const StillReport = ({
           ))}
         </ul>
 
-        {onPropose && (
+        {onPropose && d.frame.levelStable && (
           <Button variant="ghost" onClick={() => onPropose(a.facialTension)}>
             Offer level {a.facialTension} to the scoring form
           </Button>

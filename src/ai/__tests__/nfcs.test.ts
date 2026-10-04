@@ -252,7 +252,8 @@ describe('COMFORTneo facial tension mapping', () => {
   });
 
   it('stays inside the instrument range for every input', () => {
-    for (let p = 0; p <= 1.001; p += 0.05) {
+    for (let i = 0; i <= 20; i++) {
+      const p = i / 20;
       const { suggestions } = buildSuggestions(
         'COMFORTneo',
         summaryWith({ brow_bulge: p, eye_squeeze: p / 2, nasolabial_furrow: p / 3 }),
@@ -552,7 +553,7 @@ describe('describing stills with no reference at all', () => {
     expect(d.ranked.some((r) => r.action === 'taut_tongue')).toBe(false);
   });
 
-  it('skips images with no face', async () => {
+  it('retains images with no face so their abstention remains visible', async () => {
     const { describeStills } = await import('../stillAnalysis');
     expect(
       describeStills([
@@ -569,7 +570,7 @@ describe('describing stills with no reference at all', () => {
         alternateLevel: null,
       },
       ]),
-    ).toHaveLength(0);
+    ).toHaveLength(1);
   });
 });
 

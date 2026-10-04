@@ -171,7 +171,8 @@ export const selfReference = (
 ): InfantCalibration | { error: string } => {
   const k = options.k ?? DEFAULT_K;
   const minSamples = options.minSamples ?? 5;
-  const usable = frames.filter((f) => f.quality >= 0.45);
+  if (!Number.isFinite(k) || k < 0 || !Number.isInteger(minSamples) || minSamples < 1) return { error: 'Invalid reference settings.' };
+  const usable = frames.filter((f) => Number.isFinite(f.quality) && f.quality >= 0.45 && f.quality <= 1);
 
   if (usable.length === 0) {
     return {
@@ -249,7 +250,13 @@ export const calibrate = (
   const k = options.k ?? DEFAULT_K;
   const minSeconds = options.minSeconds ?? 20;
 
-  const usable = baselineFrames.filter((f) => f.quality >= 0.45);
+  if (!Number.isFinite(k) || k < 0 || !Number.isFinite(minSeconds) || minSeconds <= 0 ||
+      (options.elapsedSeconds !== undefined && (!Number.isFinite(options.elapsedSeconds) || options.elapsedSeconds < 0)) ||
+      (options.fps !== undefined && (!Number.isFinite(options.fps) || options.fps <= 0))) {
+    return { error: 'Invalid baseline duration or calibration settings.' };
+  }
+
+  const usable = baselineFrames.filter((f) => Number.isFinite(f.quality) && f.quality >= 0.45 && f.quality <= 1);
 
   /**
    * Usable duration is measured against the wall clock, not against an assumed
@@ -359,6 +366,7 @@ export const codeAction = (
   if (UNAVAILABLE_ACTIONS.includes(action) || !Number.isFinite(activation)) return null;
   const base = calibration?.baselines[action];
   if (!base) return null;
+  if (![base.median, base.robustSd, calibration?.k ?? DEFAULT_K].every(Number.isFinite) || base.robustSd < 0 || (calibration?.k ?? DEFAULT_K) < 0) return null;
   return activation > actionThreshold(base, calibration?.k ?? DEFAULT_K);
 };
 
@@ -408,7 +416,8 @@ export const summariseWindow = (
   frames: NfcsFrame[],
   windowSeconds: number,
 ): NfcsWindowSummary => {
-  const usable = frames.filter((f) => f.faceDetected && f.quality >= 0.45);
+  windowSeconds = Number.isFinite(windowSeconds) && windowSeconds > 0 ? windowSeconds : 0;
+  const usable = frames.filter((f) => f.faceDetected && Number.isFinite(f.quality) && f.quality >= 0.45 && f.quality <= 1 && Number.isFinite(f.t) && f.t >= 0 && f.t < windowSeconds * 1000);
   const actions = Object.keys(
     usable[0]?.actions ?? {
       brow_bulge: false,

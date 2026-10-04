@@ -417,12 +417,14 @@ export const decideEscalation = (params: {
   consecutiveElevated?: number;
 }): EscalationResult => {
   const {
-    correctedNpass,
-    wat1,
+    correctedNpass: rawNpass,
+    wat1: rawWat1,
     opioidExposureDays,
     recentUptitration,
     consecutiveElevated = 1,
   } = params;
+  const correctedNpass = rawNpass !== null && Number.isFinite(rawNpass) ? rawNpass : null;
+  const wat1 = rawWat1 !== null && Number.isFinite(rawWat1) ? rawWat1 : null;
   const drivers: string[] = [];
   const wat1Applies =
     Number.isFinite(opioidExposureDays) &&

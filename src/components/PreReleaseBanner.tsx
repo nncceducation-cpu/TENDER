@@ -20,7 +20,7 @@ export const PreReleaseBanner = () => {
         onClick={() => setOpen(true)}
         className="w-full rounded-lg bg-red-900 text-red-50 text-xs py-1.5 px-4 text-center hover:bg-red-800 transition mb-5"
       >
-        Pre-release demonstration. Not for patient care. Click to read why.
+        Research software release. Not for patient care. Click to read why.
       </button>
     );
   }
@@ -31,7 +31,7 @@ export const PreReleaseBanner = () => {
         <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
         <div className="space-y-2 flex-1">
           <p className="font-bold uppercase tracking-wide text-xs">
-            Pre-release demonstration. Not for patient care.
+            Research software release. Not for patient care.
           </p>
           <p className="leading-relaxed text-red-100">
             This tool has not been validated at any site, has not been reviewed by a

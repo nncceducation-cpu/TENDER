@@ -1,3 +1,4 @@
+import { usableFacialSummary } from './validity';
 import type * as ORT from 'onnxruntime-web';
 import type { CryFeatures, NfcsWindowSummary, PhysiologicFeatures } from '../domain/types';
 
@@ -108,7 +109,7 @@ export class TransparentIndex implements PainModel {
      */
     if (!input.facial) {
       abstentions.push('No facial features in this window.');
-    } else if (input.facial.secondsUsable <= 0 || input.facial.nfcsP3AchievableMax <= 0) {
+    } else if (!usableFacialSummary(input.facial)) {
       abstentions.push(
         'A facial window was recorded but no second of it was usable, so the facial arm contributes nothing. This is a blind spot, not a reassuring reading.',
       );
@@ -119,7 +120,7 @@ export class TransparentIndex implements PainModel {
       weightUsed += WEIGHTS.nfcsP3;
     }
 
-    if (input.cry?.usable) {
+    if (input.cry?.usable && Number.isFinite(input.cry.cryProportion) && input.cry.cryProportion >= 0 && input.cry.cryProportion <= 1) {
       contributions.push({
         feature: 'Cry proportion',
         weight: WEIGHTS.cryProportion,
@@ -128,7 +129,7 @@ export class TransparentIndex implements PainModel {
       total += WEIGHTS.cryProportion * input.cry.cryProportion;
       weightUsed += WEIGHTS.cryProportion;
 
-      if (input.cry.f0Median !== null) {
+      if (input.cry.f0Median !== null && Number.isFinite(input.cry.f0Median)) {
         // High-pitched cry is a recognised pain marker; scaled across 350-600 Hz.
         const v = Math.min(1, Math.max(0, (input.cry.f0Median - 350) / 250));
         contributions.push({ feature: 'Cry pitch', weight: WEIGHTS.cryPitch, value: v });
@@ -139,14 +140,14 @@ export class TransparentIndex implements PainModel {
       abstentions.push('No usable audio in this window.');
     }
 
-    if (input.physiologic?.deltaHeartRate != null) {
+    if (input.physiologic?.deltaHeartRate != null && Number.isFinite(input.physiologic.deltaHeartRate)) {
       const v = Math.min(1, Math.max(0, input.physiologic.deltaHeartRate / 30));
       contributions.push({ feature: 'Heart rate rise', weight: WEIGHTS.deltaHr, value: v });
       total += WEIGHTS.deltaHr * v;
       weightUsed += WEIGHTS.deltaHr;
     }
 
-    if (input.physiologic?.deltaSpo2 != null) {
+    if (input.physiologic?.deltaSpo2 != null && Number.isFinite(input.physiologic.deltaSpo2)) {
       const v = Math.min(1, Math.max(0, Math.abs(input.physiologic.deltaSpo2) / 10));
       contributions.push({ feature: 'Saturation fall', weight: WEIGHTS.deltaSpo2, value: v });
       total += WEIGHTS.deltaSpo2 * v;
@@ -157,7 +158,7 @@ export class TransparentIndex implements PainModel {
       return { value: 0, confidence: 0, calibrated: false, contributions, abstentions };
     }
 
-    const facialQuality = input.facial?.meanQuality ?? 0;
+    const facialQuality = usableFacialSummary(input.facial) ? input.facial!.meanQuality : 0;
     const coverage = weightUsed / Object.values(WEIGHTS).reduce((a, b) => a + b, 0);
 
     /**
@@ -168,7 +169,7 @@ export class TransparentIndex implements PainModel {
      * its confidence; this brings the index into line with it.
      */
     const windowCoverage =
-      input.facial && input.facial.windowSeconds > 0
+      usableFacialSummary(input.facial) && input.facial && input.facial.windowSeconds > 0
         ? Math.min(1, input.facial.secondsUsable / input.facial.windowSeconds)
         : 1;
 
