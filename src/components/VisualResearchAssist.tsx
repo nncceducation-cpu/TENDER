@@ -5,8 +5,12 @@ import { downloadText } from '../state/rawExport';
 import { Button, Callout, Card, Field, inputClass } from './ui';
 
 export const VisualResearchAssist = () => {
-  const [endpoint, setEndpoint] = useState('https://tender-visual-review.onrender.com');
-  const [token, setToken] = useState('');
+  const { endpoint, token } = useStore(s => s.visualConnection);
+  const [settingsInitiallyOpen] = useState(() => !useStore.getState().visualConnection.token);
+  const connection = (patch: Partial<{ endpoint: string; token: string }>) => {
+    const store = useStore.getState();
+    store.setField('visualConnection', { ...store.visualConnection, ...patch });
+  };
   const [file, setFile] = useState<File | null>(null);
   const [image, setImage] = useState('');
   const [busy, setBusy] = useState(false);
@@ -77,22 +81,21 @@ export const VisualResearchAssist = () => {
     store.setField('visualResearchRecords', store.visualResearchRecords.map(r => r.id === result.id ? updated : r));
     setResult(updated);
   };
-  return <Card title="AI photo description and research score">
+  return <Card title="Photo assessment">
     <div className="space-y-4">
-      <Callout tone="warn" title="Investigational photo review">
-        Describe visible expression and suggest a facial tension item without a baseline. This is not a complete pain score or a validated neonatal pain detector. No clinical accuracy percentage has been established.
-      </Callout>
-      <details open>
-        <summary className="cursor-pointer font-medium">Connect your visual server</summary>
+      <p className="text-sm text-slate-600">AI-assisted research preview · No baseline needed · Provisional facial item, not a complete pain assessment.</p>
+      <details open={settingsInitiallyOpen}>
+        <summary className="cursor-pointer font-medium">Connection settings</summary>
         <div className="grid sm:grid-cols-2 gap-3 mt-3">
-          <Field label="Trusted server address"><input className={inputClass} type="url" placeholder="https://your-service.onrender.com" value={endpoint} disabled={busy} onChange={e => setEndpoint(e.target.value)} /></Field>
-          <Field label="Demo access code" hint="Use your server access code here. Keep the OpenAI API key in Render settings."><input className={inputClass} type="password" autoComplete="off" value={token} disabled={busy} onChange={e => setToken(e.target.value)} /></Field>
+          <Field label="Trusted server address"><input className={inputClass} type="url" placeholder="https://your-service.onrender.com" value={endpoint} disabled={busy} onChange={e => connection({ endpoint: e.target.value })} /></Field>
+          <Field label="Demo access code" hint="Kept only in this session; excluded from exports."><input className={inputClass} type="password" autoComplete="off" value={token} disabled={busy} onChange={e => connection({ token: e.target.value })} /></Field>
         </div>
       </details>
       <Field label="Choose one photo"><input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e => { void pick(e.target.files?.[0]); }} /></Field>
       {image && <img src={image} alt="Selected photo for visual review" className="max-h-80 rounded-lg object-contain" />}
-      <p className="text-sm text-slate-600">Pressing Send transmits this photo through the server above to OpenAI. Use public demonstration images or appropriately authorized images. The server does not save photos; provider data handling applies. No baseline is required.</p>
-      <Button disabled={busy || !file || !endpoint || !token} onClick={() => { void send(); }}>{busy ? 'Reviewing photo…' : 'Send photo to OpenAI for review'}</Button>
+      <p className="text-sm text-slate-600">Cloud review starts only when you press Review photo. Use public or appropriately authorized images.</p>
+      <Button disabled={busy || !file || !endpoint || !token} onClick={() => { void send(); }}>{busy ? 'Reviewing photo…' : 'Review photo'}</Button>
+      <details className="text-sm text-slate-600"><summary className="cursor-pointer">Privacy and method</summary><p className="mt-2">This photo is sent through the configured server to OpenAI. The server does not save photos; provider data handling applies. This general-purpose visual model is not a validated neonatal pain detector. No clinical accuracy percentage has been established. Keep the API key in private server settings.</p></details>
       {error && <Callout tone="danger" title="No score produced">{error}</Callout>}
       {finding && <div className="space-y-3 border rounded-lg p-4">
         <p className="font-medium">{finding.summary}</p>
@@ -101,8 +104,10 @@ export const VisualResearchAssist = () => {
         <p className="text-xl font-semibold">{finding.facialTension === null ? 'Facial score withheld' : `Provisional facial tension: ${finding.facialTension}/5`}</p>
         <p>{finding.scoreRationale || finding.reason}</p>
         <p className="text-sm text-slate-600">{PHOTO_LIMITATION}</p>
-        <p className="text-xs text-slate-500">Model: {result?.modelVersion} · Prompt: {result?.promptVersion}. Model output is separate from clinician scoring.</p>
+        <details><summary className="cursor-pointer text-sm">Research details and reviewer rating</summary>
+        <p className="text-xs text-slate-500 mt-2">Model: {result?.modelVersion} · Prompt: {result?.promptVersion}. Model output is separate from clinician scoring.</p>
         <Field label="Your separate facial item rating" hint="This review is not blinded because the model suggestion is visible. Do not use it as an independent accuracy reference."><select className={inputClass} value={result?.reviewerScore ?? ''} onChange={e => review(e.target.value ? Number(e.target.value) : null)}><option value="">Not reviewed</option>{[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}/5</option>)}</select></Field>
+        </details>
       </div>}
       {records.length > 0 && <div className="space-y-2">
         <Button variant="ghost" onClick={() => downloadText('tender-visual-research.csv', visualRecordsToCsv(records))}>Export {records.length} visual review record(s)</Button>
