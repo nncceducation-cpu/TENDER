@@ -43,8 +43,9 @@ export const PreReleaseBanner = () => {
           <p className="leading-relaxed text-red-100">
             The facial coding layer is very likely a device function under FDA clinical
             decision support criteria and should be treated as investigational. Camera and
-            audio processing run entirely in your browser, and nothing is transmitted or
-            stored.
+            audio processing run entirely in your browser. Optional AI photo review sends
+            the selected image through your configured server to OpenAI only when you press
+            Send. Session records remain in memory until you export them.
           </p>
         </div>
         <button
