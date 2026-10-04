@@ -1,7 +1,7 @@
 {
   "name": "tender",
   "private": true,
-  "version": "2.8.2",
+  "version": "2.9.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,7 +13,8 @@
     "lint": "oxlint",
     "typecheck": "tsc -b --noEmit",
     "fetch:models": "node scripts/fetch-models.mjs",
-    "verify": "npm run typecheck && npm run lint && npm run test && npm run build",
+    "test:server": "node --experimental-strip-types --test server/visual-server.test.mjs",
+    "verify": "npm run typecheck && npm run lint && npm run test && npm run test:server && npm run build",
     "build:standalone": "vite build --config vite.standalone.config.ts"
   },
   "dependencies": {

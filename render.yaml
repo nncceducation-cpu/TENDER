@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: tender-visual-review
+    runtime: node
+    plan: free
+    buildCommand: echo "Uses Node built-ins; no backend installation required"
+    startCommand: node server/visual-server.mjs
+    envVars:
+      - key: NODE_VERSION
+        value: 24.19.0
+      - key: ALLOWED_ORIGIN
+        value: https://nncceducation-cpu.github.io
+      - key: OPENAI_MODEL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: DEMO_ACCESS_TOKEN
+        sync: false

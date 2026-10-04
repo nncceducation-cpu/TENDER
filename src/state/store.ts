@@ -13,6 +13,7 @@ import { describeCalibration } from '../ai/nfcsFeatures';
 import type { InfantCalibration } from '../ai/nfcsFeatures';
 import type { RawFrameRow } from './rawExport';
 import { PROTOCOL_VERSION } from '../data/protocol/ach';
+import type { VisualResearchRecord } from '../ai/visualResearch';
 
 export type Screen =
   | 'dashboard'
@@ -41,6 +42,7 @@ export const EMPTY_CONTEXT: PatientContext = {
 };
 
 interface AppState {
+  visualResearchRecords: VisualResearchRecord[];
   screen: Screen;
   clinician: string;
   ctx: PatientContext;
@@ -109,6 +111,7 @@ interface AppState {
  * a document to paste or attach, and the session itself is disposable.
  */
 export const useStore = create<AppState>((set, get) => ({
+  visualResearchRecords: [],
   screen: 'dashboard',
   clinician: '',
   ctx: { ...EMPTY_CONTEXT },
@@ -209,6 +212,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   reset: () =>
     set({
+      visualResearchRecords: [],
       ctx: { ...EMPTY_CONTEXT },
       surgeryType: '',
       opioidExposureDays: 0,
@@ -257,6 +261,7 @@ export const useStore = create<AppState>((set, get) => ({
         },
         assessments: s.assessments,
         facialReadings: s.facialReadings,
+        visualResearchRecords: s.visualResearchRecords,
         comfortEvents: s.comfortEvents,
         calibration: s.calibration
           ? {
