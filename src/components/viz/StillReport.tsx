@@ -138,7 +138,7 @@ export const StillReport = ({
           </div>
         </div>
 
-        {imageUrl && <FaceOverlay imageUrl={imageUrl} assessment={a} name={d.frame.name} />}
+        {imageUrl && <FaceOverlay imageUrl={imageUrl} assessment={a} name={d.frame.name} levelText={levelText} />}
 
         {d.frame.problems.length > 0 && (
           <div>
