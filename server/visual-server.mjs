@@ -65,7 +65,21 @@ export function createVisualServer(env = process.env, request = fetch) {
           signal: AbortSignal.timeout(60000),
           body: JSON.stringify({ model, store: false, instructions: VISUAL_PROMPT, input: [{ role: 'user', content: [{ type: 'input_text', text: 'Describe the visible expression and give the provisional facial item only when supported.' }, { type: 'input_image', image_url: body.image, detail: 'high' }] }], text: { format: { type: 'json_schema', name: 'neonatal_visual_review', strict: true, schema } }, max_output_tokens: 1800 }),
         });
-        if (!response.ok) return reply(502, { error: `AI service returned HTTP ${response.status}. No score was produced.` });
+        if (!response.ok) {
+          // Inspect only provider error codes; never expose its message or body.
+          let code;
+          try { code = (await response.json())?.error?.code; } catch { /* Non-JSON failure. */ }
+          if (response.status === 429 && code === 'insufficient_quota') return reply(502, {
+            error: 'OpenAI API quota is unavailable. Check API billing, credits and project spending limits in your OpenAI account. A ChatGPT subscription does not provide API credits. No score was produced.',
+            errorCode: 'provider_quota',
+          });
+          if (response.status === 429) return reply(502, {
+            error: 'OpenAI is temporarily rate-limiting requests. Wait and retry; check your API rate limits if this continues. No score was produced.',
+            errorCode: 'provider_rate_limit',
+          });
+          if (response.status === 401) return reply(502, { error: 'OpenAI did not accept the server API key. Check the key in Render settings. No score was produced.', errorCode: 'provider_auth' });
+          return reply(502, { error: `AI service returned HTTP ${response.status}. No score was produced.` });
+        }
         const data = await response.json();
         if (data.status !== 'completed') return reply(502, { error: 'AI response incomplete. No score was produced.' });
         const rawResponse = (data.output || []).flatMap(item => item.type === 'message' ? item.content || [] : []).filter(item => item.type === 'output_text').map(item => item.text).join('');

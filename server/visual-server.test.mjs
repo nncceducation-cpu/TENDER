@@ -60,3 +60,15 @@ test('provider errors are sanitized and never become a zero pain score', async (
     assert.ok(!JSON.stringify(data).includes('sensitive provider text'));
   });
 });
+test('quota exhaustion is distinguished from temporary rate limits without exposing provider text', async () => {
+  for (const [code, expected] of [['insufficient_quota', 'provider_quota'], ['rate_limit_exceeded', 'provider_rate_limit']]) {
+    await withServer(() => new Response(JSON.stringify({ error: { code, message: 'private upstream detail' } }), { status: 429 }), async url => {
+      const response = await send(url);
+      assert.equal(response.status, 502);
+      const data = await response.json();
+      assert.equal(data.errorCode, expected);
+      assert.ok(!JSON.stringify(data).includes('private upstream detail'));
+      assert.equal(data.finding, undefined);
+    });
+  }
+});
