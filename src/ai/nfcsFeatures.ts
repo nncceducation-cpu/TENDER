@@ -329,7 +329,38 @@ export const calibrate = (
 };
 
 /** Floor on the threshold so a near-zero-variance baseline does not fire on noise. */
-const MIN_THRESHOLD_MARGIN = 0.05;
+export const MIN_THRESHOLD_MARGIN = 0.05;
+
+/**
+ * The presence threshold for one action, in one place.
+ *
+ * This was previously open-coded three times: here in `codeFrame`, in
+ * `codeStills` and in `applyCalibration`. Two of the three hardcoded the 0.05
+ * floor as a literal and only this one excluded `UNAVAILABLE_ACTIONS`, which
+ * worked solely because the one unavailable action happens to carry NaN. A
+ * clinical threshold duplicated across three modules is one edit away from
+ * disagreeing with itself, so all three now call this.
+ */
+export const actionThreshold = (base: ActionBaseline, k: number): number =>
+  Math.max(base.median + k * base.robustSd, base.median + MIN_THRESHOLD_MARGIN);
+
+/**
+ * Code one action against a calibration. Returns null when the action cannot be
+ * coded at all, which is different from coding it absent: there is no signal for
+ * `taut_tongue`, and an action with no baseline has never been referenced
+ * against this infant. Callers that need a boolean must decide what to do with
+ * null rather than inheriting `false` by accident.
+ */
+export const codeAction = (
+  action: NfcsAction,
+  activation: number,
+  calibration: Pick<InfantCalibration, 'baselines' | 'k'> | null,
+): boolean | null => {
+  if (UNAVAILABLE_ACTIONS.includes(action) || !Number.isFinite(activation)) return null;
+  const base = calibration?.baselines[action];
+  if (!base) return null;
+  return activation > actionThreshold(base, calibration?.k ?? DEFAULT_K);
+};
 
 export const codeFrame = (
   r: FaceLandmarkerResult,
@@ -341,23 +372,22 @@ export const codeFrame = (
   const actions = {} as Record<NfcsAction, boolean>;
 
   for (const key of Object.keys(activations) as NfcsAction[]) {
-    if (UNAVAILABLE_ACTIONS.includes(key) || !Number.isFinite(activations[key])) {
-      actions[key] = false;
-      continue;
-    }
-    const base = calibration?.baselines[key];
-    if (!base) {
-      actions[key] = false; // no calibration means no coding, not a guess
-      continue;
-    }
-    const threshold = Math.max(
-      base.median + (calibration?.k ?? DEFAULT_K) * base.robustSd,
-      base.median + MIN_THRESHOLD_MARGIN,
-    );
-    actions[key] = activations[key] > threshold;
+    // null means "not codeable", which collapses to absent in the boolean the
+    // frame carries. The distinction is preserved in `codeable` below so a
+    // window can report how much of the instrument it was able to code.
+    actions[key] = codeAction(key, activations[key], calibration) === true;
   }
 
-  return { t, actions, activations, faceDetected: true, quality };
+  /**
+   * `faceDetected` used to be the literal `true`, including for a result with
+   * no landmarks at all. `summariseWindow` filters on
+   * `faceDetected && quality >= 0.45`, so that half of its gate did nothing for
+   * any frame this function produced and only the quality term was load-bearing.
+   * It now reports what the landmarker actually returned.
+   */
+  const faceDetected = (r.faceLandmarks?.[0]?.length ?? 0) > 0;
+
+  return { t, actions, activations, faceDetected, quality };
 };
 
 // ---------------------------------------------------------------------------
@@ -416,12 +446,35 @@ export const summariseWindow = (
   const nfcs7Sum = codeable.reduce((s, a) => s + (presentSeconds[a] ?? 0), 0);
   const nfcsP3Sum = P3.reduce((s, a) => s + (presentSeconds[a] ?? 0), 0);
 
+  /**
+   * The achievable maxima, reported rather than left for each consumer to
+   * assume.
+   *
+   * Both sums are counts of seconds, so their ceiling is the number of seconds
+   * actually coded, not the instrument's nominal range. A window with four
+   * usable seconds cannot exceed 12 on NFCS-P-3 however distressed the infant
+   * is. Every consumer that compared these against a fixed 30 or 70 therefore
+   * under-reported pain on any short or partly unusable window, which is the
+   * direction that withholds analgesia.
+   *
+   * `nfcs7AchievableMax` additionally accounts for `UNAVAILABLE_ACTIONS`: with
+   * `taut_tongue` unsignalled, six of seven actions can be coded, so a full
+   * 10-second window reaches 60 and not the 70 the published 7-action total
+   * implies.
+   */
+  const nfcsP3AchievableMax = P3.filter((a) => !UNAVAILABLE_ACTIONS.includes(a)).length * secondsUsable;
+  const nfcs7AchievableMax = codeable.length * secondsUsable;
+
   return {
     windowSeconds,
     framesScored: usable.length,
     proportionPresent,
     nfcs7Sum,
     nfcsP3Sum,
+    nfcs7AchievableMax,
+    nfcsP3AchievableMax,
+    actionsUnavailable: [...UNAVAILABLE_ACTIONS],
+    nfcs7Complete: UNAVAILABLE_ACTIONS.length === 0,
     meanQuality: usable.length ? usable.reduce((s, f) => s + f.quality, 0) / usable.length : 0,
     secondsUsable,
   };

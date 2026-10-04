@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { calibrate, summariseWindow, UNAVAILABLE_ACTIONS, DEFAULT_K } from '../nfcsFeatures';
 import { buildSuggestions } from '../suggestions';
 import { TransparentIndex } from '../painModel';
-import type { NfcsAction, NfcsFrame } from '../../domain/types';
+import type { NfcsAction, NfcsFrame, NfcsWindowSummary } from '../../domain/types';
 
 const ACTIONS: NfcsAction[] = [
   'brow_bulge',
@@ -139,12 +139,16 @@ describe('epoch summary', () => {
 });
 
 describe('PIPP-R facial suggestions', () => {
-  const summaryWith = (proportion: number) => ({
+  const summaryWith = (proportion: number): NfcsWindowSummary => ({
     windowSeconds: 30,
     framesScored: 450,
     proportionPresent: Object.fromEntries(ACTIONS.map((a) => [a, proportion])) as Record<NfcsAction, number>,
     nfcs7Sum: 0,
     nfcsP3Sum: Math.round(proportion * 30),
+    nfcs7AchievableMax: 6 * 30,
+    nfcsP3AchievableMax: 3 * 30,
+    actionsUnavailable: [...UNAVAILABLE_ACTIONS],
+    nfcs7Complete: UNAVAILABLE_ACTIONS.length === 0,
     meanQuality: 0.9,
     secondsUsable: 30,
   });
@@ -167,7 +171,7 @@ describe('PIPP-R facial suggestions', () => {
   });
 
   it('withholds facial suggestions when too little of the window was usable', () => {
-    const poor = { ...summaryWith(0.9), secondsUsable: 3, meanQuality: 0.5 };
+    const poor = { ...summaryWith(0.9), secondsUsable: 3, meanQuality: 0.5, nfcsP3AchievableMax: 9, nfcs7AchievableMax: 18 };
     const { suggestions, abstentions } = buildSuggestions('PIPP_R', poor, undefined, undefined);
     expect(Object.keys(suggestions)).toHaveLength(0);
     expect(abstentions.join(' ')).toMatch(/withheld/);
@@ -196,6 +200,10 @@ describe('COMFORTneo facial tension mapping', () => {
     nfcsP3Sum: 0,
     meanQuality: 0.9,
     secondsUsable: 30,
+    nfcs7AchievableMax: 6 * 30,
+    nfcsP3AchievableMax: 3 * 30,
+    actionsUnavailable: [...UNAVAILABLE_ACTIONS],
+    nfcs7Complete: UNAVAILABLE_ACTIONS.length === 0,
   });
 
   it('never proposes level 1, because coding cannot establish total relaxation', () => {
@@ -276,6 +284,10 @@ describe('transparent index', () => {
         nfcsP3Sum: 30,
         meanQuality: 1,
         secondsUsable: 10,
+        nfcs7AchievableMax: 6 * 10,
+        nfcsP3AchievableMax: 3 * 10,
+        actionsUnavailable: [...UNAVAILABLE_ACTIONS],
+        nfcs7Complete: UNAVAILABLE_ACTIONS.length === 0,
       },
     });
     expect(out.calibrated).toBe(false);

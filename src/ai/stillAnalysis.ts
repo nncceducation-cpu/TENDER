@@ -6,7 +6,7 @@ import {
   CANONICAL_FACE_PX,
   STABILITY_FACE_PX,
 } from './faceLandmarker';
-import { calibrate, rawActivations, selfReference, summariseWindow } from './nfcsFeatures';
+import { calibrate, codeAction, rawActivations, selfReference, summariseWindow } from './nfcsFeatures';
 import type { InfantCalibration } from './nfcsFeatures';
 import { measureGeometry, readSingleImage, type SingleImageAssessment } from './faceGeometry';
 import type { NfcsAction, NfcsFrame, NfcsWindowSummary } from '../domain/types';
@@ -115,10 +115,37 @@ export const analyseStills = async (
      * `assessFrameQuality` computes `usable` at 0.45 and the calibration path
      * honours it, but the geometric single-image route did not, so a photograph
      * scoring 0.30 with a 110-pixel face box still produced a confident COMFORT
-     * level. A reading taken from a face too small, too oblique or too dark to
-     * measure is worse than no reading, because it looks the same as a good one.
+     * level. A reading taken from a face too small or too oblique to measure is
+     * worse than no reading, because it looks the same as a good one. (Exposure
+     * is not among the things measured; see `assessFrameQuality`.)
+     *
+     * That fix was incomplete, and the gap was reintroduced by the small-face
+     * penalty below. The penalty used to be applied AFTER the gate, so the gate
+     * tested `q.quality` while the frame was stored with a lower number. A
+     * 400x300 photograph of a 160-pixel face passed the gate at 0.600, produced
+     * an assessment, and was then stored at 0.436. `codeStills` skipped it, but
+     * `describeStills` has no quality filter and surfaced its COMFORT level
+     * anyway. Measured, the same face at 320x240 stored 0.349 and at 260x200
+     * stored 0.284, all three still carrying a level.
+     *
+     * The penalty is therefore applied first and the gate tests the number the
+     * frame is actually stored with, so no consumer can reach a level the module
+     * judged unmeasurable. Filtering `describeStills` would have fixed one
+     * caller; this fixes every caller.
      */
-    const qualityUsable = q.quality >= 0.45;
+    const faceBoxPx = crop?.faceBoxPx ?? null;
+    const problems = [...q.problems];
+    let quality = q.quality;
+
+    // Upsampling a small face box to 512 does not create detail it never had.
+    if (faceBoxPx !== null && faceBoxPx < 220) {
+      quality *= Math.max(0.4, faceBoxPx / 220);
+      problems.push(
+        `The face occupies only ${Math.round(faceBoxPx)} pixels in this image. Measurements on a face this small are imprecise however the file is scaled.`,
+      );
+    }
+
+    const qualityUsable = quality >= 0.45;
 
     const geometry = qualityUsable ? measureGeometry(useResult, useW, useH) : null;
 
@@ -150,21 +177,9 @@ export const analyseStills = async (
       }
     }
 
-    const faceBoxPx = crop?.faceBoxPx ?? null;
-    const problems = [...q.problems];
-    let quality = q.quality;
-
     if (!qualityUsable) {
       problems.push(
-        `Frame quality ${q.quality.toFixed(2)} is below the 0.45 needed to measure this face. No level is offered, which is the correct output rather than a missing one.`,
-      );
-    }
-
-    // Upsampling a small face box to 512 does not create detail it never had.
-    if (faceBoxPx !== null && faceBoxPx < 220) {
-      quality *= Math.max(0.4, faceBoxPx / 220);
-      problems.push(
-        `The face occupies only ${Math.round(faceBoxPx)} pixels in this image. Measurements on a face this small are imprecise however the file is scaled.`,
+        `Frame quality ${quality.toFixed(2)} is below the 0.45 needed to measure this face. No level is offered, which is the correct output rather than a missing one.`,
       );
     }
     if (!levelStable) {
@@ -314,16 +329,11 @@ export const codeStills = (
       continue;
     }
 
+    // Shared with codeFrame and applyCalibration: the presence threshold and the
+    // unavailable-action check live in nfcsFeatures, not in three copies here.
     const actions = {} as Record<NfcsAction, boolean>;
     for (const key of Object.keys(frame.activations) as NfcsAction[]) {
-      const base = calibration.baselines[key];
-      const value = frame.activations[key];
-      if (!base || !Number.isFinite(value)) {
-        actions[key] = false;
-        continue;
-      }
-      const threshold = Math.max(base.median + calibration.k * base.robustSd, base.median + 0.05);
-      actions[key] = value > threshold;
+      actions[key] = codeAction(key, frame.activations[key], calibration) === true;
     }
     coded.push({ frame, actions });
   }
@@ -340,7 +350,9 @@ export const codeStills = (
       t: i * 1000,
       actions: c.actions,
       activations: c.frame.activations,
-      faceDetected: true,
+      // Only frames with a face reach `coded`, so this is a fact here rather
+      // than the hardcoded literal codeFrame used to carry.
+      faceDetected: c.frame.faceFound,
       quality: c.frame.quality,
     }));
     summary = summariseWindow(asFrames, coded.length);

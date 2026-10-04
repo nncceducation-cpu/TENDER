@@ -143,9 +143,13 @@ export class CryAnalyser {
 
 /**
  * Fundamental frequency by autocorrelation, restricted to the neonatal cry band.
- * Restricting the lag search is what keeps adult speech in the room from being
- * picked up as the infant's cry: an adult voice at 110-200 Hz falls outside the
- * searched lag range entirely.
+ *
+ * Restricting the lag search guarantees only that the answer is in band. It does
+ * not exclude an out-of-band source, which was the previous claim here and was
+ * wrong: adult speech was reported at the top of the band rather than declined.
+ * The two guards at the end of the function are what actually reject a source
+ * whose true period lies outside the searched range; see the comment there for
+ * the measured values.
  */
 export const detectF0 = (buffer: Float32Array, sampleRate: number): number | null => {
   const minLag = Math.floor(sampleRate / NEONATAL_F0_MAX_HZ);
@@ -170,5 +174,60 @@ export const detectF0 = (buffer: Float32Array, sampleRate: number): number | nul
 
   // A weak peak means no periodic source; report nothing rather than a number.
   if (bestLag < 0 || bestCorr < 0.3) return null;
+
+  /**
+   * Restricting the lag search does not, on its own, exclude an out-of-band
+   * source. It only guarantees the ANSWER is in band, which is a different and
+   * much weaker property, and the comment above used to claim the stronger one.
+   *
+   * Measured against pure tones, the unguarded search reported a 120 Hz adult
+   * voice as 750 Hz and a 150 Hz voice as 750 Hz, because the correlation of a
+   * long-period source is still rising at the shortest lag searched, so the peak
+   * lands pinned against the range boundary. It reported 800 Hz as 400 Hz and
+   * 900 Hz as 449 Hz, because a source above the band correlates at a multiple
+   * of its true period that happens to fall inside the searched range.
+   *
+   * Both matter clinically and in opposite directions. 750 Hz is the top of the
+   * band and drives the maximum cry-pitch contribution in the pain index, so a
+   * conversation at the bedside produced the strongest possible cry signal. An
+   * octave error halves a genuinely high-pitched cry and under-reports it.
+   *
+   * The two guards below are properties of the signal, not clinical thresholds.
+   */
+
+  // A peak pinned against either end of the search range is characteristic of a
+  // source whose true period lies outside it. The cost is that a cry at exactly
+  // 300 or 750 Hz is now declined; 310 and 700 Hz still read correctly.
+  if (bestLag === minLag || bestLag === maxLag) return null;
+
+  // If the waveform correlates as strongly at half the detected lag, the true
+  // period is the shorter one and the fundamental is above the band, so this is
+  // an octave error rather than a reading. A genuine fundamental anti-correlates
+  // at half its period, so this does not fire on real cry, including cry with a
+  // strong second harmonic.
+  const half = Math.round(bestLag / 2);
+  if (half >= 1 && normalisedCorrelation(buffer, half) >= 0.8 * normalisedCorrelation(buffer, bestLag)) {
+    return null;
+  }
+
   return sampleRate / bestLag;
+};
+
+/**
+ * Correlation at one lag, normalised by the energy of the two overlapping
+ * windows rather than of the whole buffer, so values at different lags are
+ * comparable. The search above uses whole-buffer energy, which is fine for
+ * finding a peak but not for comparing two lags against each other.
+ */
+const normalisedCorrelation = (buffer: Float32Array, lag: number): number => {
+  let corr = 0;
+  let energyA = 0;
+  let energyB = 0;
+  for (let i = 0; i < buffer.length - lag; i++) {
+    corr += buffer[i] * buffer[i + lag];
+    energyA += buffer[i] * buffer[i];
+    energyB += buffer[i + lag] * buffer[i + lag];
+  }
+  const denominator = Math.sqrt(energyA * energyB);
+  return denominator > 0 ? corr / denominator : 0;
 };

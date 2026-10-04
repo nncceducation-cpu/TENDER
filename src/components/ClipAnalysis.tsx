@@ -152,7 +152,7 @@ export const ClipAnalysis = () => {
       void audit.append(
         clinician || 'unattributed',
         'clip.coded',
-        `Recorded clip coded on device. NFCS-P-3 ${r.summary.nfcsP3Sum}/30 over ${r.summary.secondsUsable} usable seconds.`,
+        `Recorded clip coded on device. NFCS-P-3 ${r.summary.nfcsP3Sum} of a reachable ${r.summary.nfcsP3AchievableMax} over ${r.summary.secondsUsable} usable seconds.`,
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

@@ -1,6 +1,6 @@
 import type { FaceLandmarkerService } from './faceLandmarker';
 import { assessFrameQuality } from './faceLandmarker';
-import { calibrate, rawActivations, selfReference, summariseWindow } from './nfcsFeatures';
+import { calibrate, codeAction, rawActivations, selfReference, summariseWindow } from './nfcsFeatures';
 import type { InfantCalibration } from './nfcsFeatures';
 import type { NfcsAction, NfcsFrame, NfcsWindowSummary } from '../domain/types';
 
@@ -242,23 +242,18 @@ export const analyseClip = async (
   };
 };
 
-/** Threshold a sampled frame against a calibration, mirroring `codeFrame`. */
+/** Threshold a sampled frame against a calibration, sharing `codeFrame`'s rule. */
 const applyCalibration = (frame: SampledFrame, calibration: InfantCalibration): NfcsFrame => {
   const actions = {} as Record<NfcsAction, boolean>;
   for (const key of Object.keys(frame.activations) as NfcsAction[]) {
-    const base = calibration.baselines[key];
-    const value = frame.activations[key];
-    if (!base || !Number.isFinite(value)) {
-      actions[key] = false;
-      continue;
-    }
-    const threshold = Math.max(base.median + calibration.k * base.robustSd, base.median + 0.05);
-    actions[key] = value > threshold;
+    actions[key] = codeAction(key, frame.activations[key], calibration) === true;
   }
   return {
     t: frame.t,
     actions,
     activations: frame.activations,
+    // `sampleRange` only pushes frames in which a face was found, so this is a
+    // fact for every frame reaching here rather than an assumption.
     faceDetected: true,
     quality: frame.quality,
   };

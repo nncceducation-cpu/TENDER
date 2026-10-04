@@ -253,7 +253,7 @@ export const FacialCapture = ({ onEvidence }: { onEvidence?: (e: AiEvidence) => 
     onEvidence?.(evidence);
     setMode('idle');
     setStatus(
-      `Window closed: ${facial.secondsUsable} usable seconds of ${windowSeconds.toFixed(0)}, NFCS-P-3 ${facial.nfcsP3Sum}/30.`,
+      `Window closed: ${facial.secondsUsable} usable seconds of ${windowSeconds.toFixed(0)}, NFCS-P-3 ${facial.nfcsP3Sum} of a reachable ${facial.nfcsP3AchievableMax}.`,
     );
   };
 
@@ -370,7 +370,7 @@ export const FacialCapture = ({ onEvidence }: { onEvidence?: (e: AiEvidence) => 
         {evidence?.facial && (
           <div className="space-y-3 pt-2 border-t border-slate-200">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <Stat label="NFCS-P-3" value={`${evidence.facial.nfcsP3Sum}/30`} />
+              <Stat label="NFCS-P-3" value={`${evidence.facial.nfcsP3Sum}/${evidence.facial.nfcsP3AchievableMax}`} />
               <Stat label="Usable seconds" value={evidence.facial.secondsUsable} />
               <Stat label="Mean quality" value={evidence.facial.meanQuality.toFixed(2)} />
               <Stat

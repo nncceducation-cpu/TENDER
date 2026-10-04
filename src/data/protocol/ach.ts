@@ -30,10 +30,15 @@ export interface ProtocolVersion {
  */
 export const PROTOCOL_VERSION: ProtocolVersion = {
   id: 'ACH-NICU-POSTOP-OPIOID',
-  version: '2.5.0-draft',
+  version: '2.6.0-draft',
   effectiveDate: '2025-02-24',
   owner: 'Section of Newborn Critical Care, Alberta Children\'s Hospital',
   changelog: [
+    {
+      version: '2.6.0-draft',
+      date: '2026-10-04',
+      note: 'Correctness review of the on-device facial, clip and cry layer. The transparent index abstained nowhere: a window in which the face was never usable returned index 0.000, identical to a genuinely settled infant, with no abstention recorded. Both NFCS sums are counts of seconds and were being compared against the instruments\' nominal ranges, so a four-second usable window with all three pain actions present throughout scored 0.400 instead of 1.000. NFCS-P-3 items are no longer filled when the reachable total sits below the published 9 of 30 threshold, because a two-second window could only ever read as subclinical. Cry pitch detection reported a 120 Hz adult voice as 750 Hz, the top of the neonatal band and the maximum pain contribution; out-of-band sources are now declined. faceDetected was the literal true everywhere, including for frames with no landmarks. A photograph the stills module judged unmeasurable could still display a COMFORT level. The frame quality gate never assessed exposure despite saying it did. No clinical threshold, dose or scoring constant changed.',
+    },
     {
       version: '2.5.0-draft',
       date: '2026-10-04',
@@ -414,7 +419,7 @@ export const REVIEW_FLAGS: ReviewFlag[] = [
     severity: 'high',
     where: 'RELAXED_REFERENCE.eyeSqueezeFloor and readSingleImage',
     finding:
-      'Three photographs of calm, content infants each scored COMFORT facial tension 3 of 5, because an open mouth was counted as tension at full weight while the eyes were wide open. The module now requires eye squeeze before the mouth counts and caps the level at 2 when the eyes are clearly open, which follows NFCS, where eye squeeze is the discriminating action. That fixed three out of three false positives. It has not been tested against a single photograph of an infant in genuine pain, so the false negative rate is unknown, and the rule is capable of under-calling an infant who is in pain with the eyes open.',
+      'Three photographs of calm, content infants each scored COMFORT facial tension 3 of 5, because an open mouth was counted as tension at full weight while the eyes were wide open. The module now requires eye squeeze before the mouth counts and caps the level at 2 when the eyes are clearly open, which follows NFCS, where eye squeeze is the discriminating action. That fixed three out of three false positives. It has not been tested against a single photograph of an infant in genuine pain, so the false negative rate is unknown, and the rule is capable of under-calling an infant who is in pain with the eyes open. Measured addition: the cap is also a discontinuity, not a gentle ceiling. Holding the brow fully lowered and the mouth wide open and varying only eye aperture, the reading is level 4 at an aperture of 0.075 of interocular distance and level 2 at 0.080, skipping level 3 entirely across a change of 0.005. Nothing in the output tells a reader that a level 2 sat one five-thousandth of an interocular distance from a level 4.',
     question:
       'Supply photographs of infants during a known noxious event so the false negative side can be measured. Until then, should the single-image route be available for clinical use at all, or restricted to the research protocol?',
   },
@@ -426,6 +431,33 @@ export const REVIEW_FLAGS: ReviewFlag[] = [
       'Each score is tested against the threshold for its own instrument, so a run of consecutive elevated scores may mix instruments: an elevated N-PASS followed by an elevated WAT-1 counts as two. The count is the same as for two readings of one instrument, but the two instruments measure different things, so a mixed pair reaches the pause step without either pain or withdrawal having been elevated twice in a row. Pausing the wean is the conservative direction, so the behaviour was left as found rather than quietly narrowed.',
     question:
       'Does the pathway\'s "elevated scores q 30-60 min x 2" note count two readings of the same instrument, or any two consecutive elevated scores?',
+  },
+  {
+    id: 'frame-exposure-not-assessed',
+    severity: 'medium',
+    where: 'assessFrameQuality',
+    finding:
+      'The frame quality gate measures face size, head pose and frame resolution. It does not measure exposure, and it cannot: it receives the landmark result and the frame dimensions, never the pixels. Both its own doc comment and stillAnalysis described it as rejecting a face "too dark" to measure, which was never true. Measured, a correctly framed frontal face scores 1.00 whatever the lighting. The comments are corrected and the gate now returns a notAssessed list naming the gap rather than implying a complete check. No luminance term was added, because adding one means choosing a threshold and no neonatal data exists here to set one from.',
+    question:
+      'Should a luminance or contrast term be added to the quality gate, and at what value? Supply photographs and clip frames spanning the lighting actually used at the bedside, including a phototherapy cot and an overnight room, so a threshold can be measured rather than guessed.',
+  },
+  {
+    id: 'nfcs-short-window-items-withheld',
+    severity: 'medium',
+    where: 'buildSuggestions, NFCS_P3 branch',
+    finding:
+      'NFCS-P-3 items are counts of seconds, so the reachable total is three times the number of usable seconds. The scale defines a 10-second epoch scored 0 to 30 with a published clinical threshold at 9 of 30. A window with two usable seconds therefore has a ceiling of 6 and cannot reach the threshold however distressed the infant is, yet the items were filled as 2, 2 and 2 at confidence 1.00 and the banding reported "below the published clinical threshold" for a maximal facial response. Items are now withheld, with an abstention naming the ceiling, whenever the reachable total sits below the published threshold. A window of three usable seconds has a ceiling of exactly 9 and is still scored.',
+    question:
+      'Is withholding the right behaviour, or should a short window be scored and reported as a proportion of its own ceiling instead? The second option keeps a number on the chart but makes it incomparable with a full epoch and with the published threshold.',
+  },
+  {
+    id: 'nfcs7-total-cannot-reach-70',
+    severity: 'medium',
+    where: 'summariseWindow, nfcs7Sum',
+    finding:
+      'The 7-action NFCS total is published as 0 to 70 over a 10-second epoch. This implementation cannot reach 70: taut tongue has no signal in a general face landmarker and is listed in UNAVAILABLE_ACTIONS, so six of seven actions are codeable and a fully coded window reaches 60. The type comment claimed the published range and the extractor claimed the partial total "is flagged incomplete whenever it is requested", which was true only in buildSuggestions and not on the data itself. The summary now carries nfcs7AchievableMax, actionsUnavailable and nfcs7Complete so any consumer can see the ceiling, and the ONNX feature vector gained window-independent fraction variants alongside the raw sums.',
+    question:
+      'Should the 7-action total be offered at all while one action is unsignalled, or restricted to the 3-action constellation which is complete? Reporting a 6-action sum under a 7-action name invites comparison with published cut-offs that assume seven.',
   },
   {
     id: 'unimplemented-instruments',
