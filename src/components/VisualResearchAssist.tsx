@@ -3,13 +3,17 @@ import { PHOTO_LIMITATION, REVIEW_PROMPT_VERSION, validateVisualFinding, visualR
 import { useStore } from '../state/store';
 import { downloadText } from '../state/rawExport';
 import { Button, Callout, Card, Field, inputClass } from './ui';
+import { savePresentationConnection, clearPresentationConnection, type VisualConnection } from '../state/presentationConnection';
+import { FacialScoreGraphic } from './viz/FacialScoreGraphic';
 
 export const VisualResearchAssist = () => {
-  const { endpoint, token } = useStore(s => s.visualConnection);
+  const { endpoint, token, remember } = useStore(s => s.visualConnection);
   const [settingsInitiallyOpen] = useState(() => !useStore.getState().visualConnection.token);
-  const connection = (patch: Partial<{ endpoint: string; token: string }>) => {
+  const connection = (patch: Partial<VisualConnection>) => {
     const store = useStore.getState();
-    store.setField('visualConnection', { ...store.visualConnection, ...patch });
+    const next = { ...store.visualConnection, ...patch };
+    store.setField('visualConnection', next);
+    if (!savePresentationConnection(next) && next.remember) setError('This browser could not remember access. The current session still works.');
   };
   const [file, setFile] = useState<File | null>(null);
   const [image, setImage] = useState('');
@@ -88,9 +92,12 @@ export const VisualResearchAssist = () => {
         <summary className="cursor-pointer font-medium">Connection settings</summary>
         <div className="grid sm:grid-cols-2 gap-3 mt-3">
           <Field label="Trusted server address"><input className={inputClass} type="url" placeholder="https://your-service.onrender.com" value={endpoint} disabled={busy} onChange={e => connection({ endpoint: e.target.value })} /></Field>
-          <Field label="Demo access code" hint="Kept only in this session; excluded from exports."><input className={inputClass} type="password" autoComplete="off" value={token} disabled={busy} onChange={e => connection({ token: e.target.value })} /></Field>
+          <Field label="Demo access code" hint="Excluded from research exports."><input className={inputClass} type="password" autoComplete="off" value={token} disabled={busy} onChange={e => connection({ token: e.target.value })} /></Field>
         </div>
+        <label className="flex items-center gap-2 text-sm mt-3"><input type="checkbox" checked={Boolean(remember)} disabled={busy} onChange={e => connection({ remember: e.target.checked })} />Remember access in this tab for the presentation</label>
+        <p className="text-xs text-slate-500 mt-1">Enter once before your talk. Access survives refresh in this tab and stays out of the public website code. Use End presentation to clear it.</p>
       </details>
+      {remember && token && <div className="flex items-center justify-between gap-3 text-sm"><span className="font-medium text-emerald-700">Presentation access ready</span><Button variant="ghost" disabled={busy} onClick={() => { clearPresentationConnection(); connection({ token: '', remember: false }); }}>End presentation</Button></div>}
       <Field label="Choose one photo"><input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e => { void pick(e.target.files?.[0]); }} /></Field>
       {image && <img src={image} alt="Selected photo for visual review" className="max-h-80 rounded-lg object-contain" />}
       <p className="text-sm text-slate-600">Cloud review starts only when you press Review photo. Use public or appropriately authorized images.</p>
@@ -98,10 +105,10 @@ export const VisualResearchAssist = () => {
       <details className="text-sm text-slate-600"><summary className="cursor-pointer">Privacy and method</summary><p className="mt-2">This photo is sent through the configured server to OpenAI. The server does not save photos; provider data handling applies. This general-purpose visual model is not a validated neonatal pain detector. No clinical accuracy percentage has been established. Keep the API key in private server settings.</p></details>
       {error && <Callout tone="danger" title="No score produced">{error}</Callout>}
       {finding && <div className="space-y-3 border rounded-lg p-4">
+        <FacialScoreGraphic score={finding.facialTension} />
         <p className="font-medium">{finding.summary}</p>
         <ul className="list-disc pl-5">{finding.observations.map((text, i) => <li key={i}>{text}</li>)}</ul>
         <p>Eyes: {finding.eyes} · Brow: {finding.brow} · Mouth: {finding.mouth}</p>
-        <p className="text-xl font-semibold">{finding.facialTension === null ? 'Facial score withheld' : `Provisional facial tension: ${finding.facialTension}/5`}</p>
         <p>{finding.scoreRationale || finding.reason}</p>
         <p className="text-sm text-slate-600">{PHOTO_LIMITATION}</p>
         <details><summary className="cursor-pointer text-sm">Research details and reviewer rating</summary>

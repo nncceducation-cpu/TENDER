@@ -14,6 +14,7 @@ import type { InfantCalibration } from '../ai/nfcsFeatures';
 import type { RawFrameRow } from './rawExport';
 import { PROTOCOL_VERSION } from '../data/protocol/ach';
 import type { VisualResearchRecord } from '../ai/visualResearch';
+import { readPresentationConnection, clearPresentationConnection, type VisualConnection } from './presentationConnection';
 
 export type Screen =
   | 'dashboard'
@@ -42,7 +43,7 @@ export const EMPTY_CONTEXT: PatientContext = {
 };
 
 interface AppState {
-  visualConnection: { endpoint: string; token: string };
+  visualConnection: VisualConnection;
   visualResearchRecords: VisualResearchRecord[];
   screen: Screen;
   clinician: string;
@@ -112,7 +113,7 @@ interface AppState {
  * a document to paste or attach, and the session itself is disposable.
  */
 export const useStore = create<AppState>((set, get) => ({
-  visualConnection: { endpoint: 'https://tender-visual-review.onrender.com', token: '' },
+  visualConnection: readPresentationConnection(),
   visualResearchRecords: [],
   screen: 'dashboard',
   clinician: '',
@@ -212,7 +213,8 @@ export const useStore = create<AppState>((set, get) => ({
 
   setRawFrames: (rawFrames) => set({ rawFrames }),
 
-  reset: () =>
+  reset: () => {
+    clearPresentationConnection();
     set({
       visualConnection: { endpoint: 'https://tender-visual-review.onrender.com', token: '' },
       visualResearchRecords: [],
@@ -234,7 +236,8 @@ export const useStore = create<AppState>((set, get) => ({
       rawFrames: [],
       audit: new AuditLog(),
       screen: 'dashboard',
-    }),
+    });
+  },
 
   exportSession: () => {
     const s = get();
