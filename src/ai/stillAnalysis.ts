@@ -3,13 +3,11 @@ import {
   assessFrameQuality,
   canonicaliseFace,
   mapPointsToOriginal,
-  mirrorFaceCrop,
   CANONICAL_FACE_PX,
-  STABILITY_FACE_PX,
 } from './faceLandmarker';
 import { calibrate, codeAction, rawActivations, selfReference, summariseWindow } from './nfcsFeatures';
 import type { InfantCalibration } from './nfcsFeatures';
-import { measureGeometry, readSingleImage, type SingleImageAssessment } from './faceGeometry';
+import { measureGeometry, type GeometryMeasures, type SingleImageAssessment } from './faceGeometry';
 import type { NfcsAction, NfcsFrame, NfcsWindowSummary } from '../domain/types';
 
 /**
@@ -45,6 +43,7 @@ export interface StillFrame {
    * Null when the landmarks were insufficient to measure.
    */
   assessment: SingleImageAssessment | null;
+  geometry?: GeometryMeasures | null;
   /** Face box size in the original image, in pixels. Null when no face. */
   faceBoxPx: number | null;
   /**
@@ -168,70 +167,18 @@ export const analyseStills = async (
       mapPointsToOriginal(geometry.points as unknown as Record<string, Record<string, { x: number; y: number }>>, crop);
     }
 
-    const read = geometry ? readSingleImage(geometry) : null;
-    let assessment = read?.scoreAvailable ? read : null;
-    if (read && !read.scoreAvailable) {
-      problems.push('Closed or narrowed eyelids alone cannot distinguish sleep or blinking from eye squeeze. No facial tension level is offered. Assess the infant directly; a settled baseline or sequence may help.');
-    }
-
-    // Third pass at a different scale, to find out whether the level is a fact
-    // about the face or an artefact of the resampling.
-    let levelStable = assessment !== null;
-    let alternateLevel: number | null = null;
-    if (assessment && crop) {
-      const alt = canonicaliseFace(img, located, STABILITY_FACE_PX);
-      const altResult = alt ? service.detectStill(alt.canvas) : null;
-      if (altResult && assessFrameQuality(altResult, STABILITY_FACE_PX, STABILITY_FACE_PX).usable) {
-        const altGeom = measureGeometry(altResult, STABILITY_FACE_PX, STABILITY_FACE_PX);
-        const altRead = altGeom ? readSingleImage(altGeom) : null;
-        if (altRead && altRead.facialTension !== assessment.facialTension) {
-          levelStable = false;
-          alternateLevel = altRead.facialTension;
-        }
-        if (!altRead?.scoreAvailable) {
-          levelStable = false;
-          assessment = null;
-          problems.push('The second-scale measurement failed. No facial tension level is offered.');
-        }
-      } else {
-        levelStable = false;
-        assessment = null;
-        problems.push('The second-scale face could not be measured reliably. No facial tension level is offered.');
-      }
-    }
-
-    // A reflection preserves expression. If the detector cannot reproduce the
-    // level after reflection, the geometry cannot support a single-level proposal.
-    if (assessment && crop) {
-      const mirror = mirrorFaceCrop(crop.canvas);
-      const mirroredResult = mirror ? service.detectStill(mirror) : null;
-      const mirroredGeometry = mirroredResult &&
-        assessFrameQuality(mirroredResult, CANONICAL_FACE_PX, CANONICAL_FACE_PX).usable
-        ? measureGeometry(mirroredResult, CANONICAL_FACE_PX, CANONICAL_FACE_PX) : null;
-      const mirroredReading = mirroredGeometry ? readSingleImage(mirroredGeometry) : null;
-      if (!mirroredReading?.scoreAvailable || mirroredReading.facialTension !== assessment.facialTension) {
-        problems.push(mirroredReading && !mirroredReading.scoreAvailable
-          ? 'The reflected measurement has eyelid-closure ambiguity. No facial tension level is offered.'
-          : mirroredReading
-          ? `Reflection changed the facial tension reading from ${assessment.facialTension} to ${mirroredReading.facialTension}. No level is offered because the measurement is not reproducible.`
-          : 'The reflected face could not be measured reliably. No facial tension level is offered.');
-        levelStable = false;
-        alternateLevel = mirroredReading?.scoreAvailable ? mirroredReading.facialTension : null;
-        assessment = null;
-      }
-    }
+    // Landmark distances have no validated mapping to COMFORT muscle tension.
+    // Never manufacture an instrument item, even with a baseline or good landmarks.
+    const assessment = null;
+    const levelStable = false;
+    const alternateLevel = null;
+    problems.push('Automatic COMFORT facial scoring from photograph geometry is unavailable. Review the image and record your observed facial tension.');
 
     if (!qualityUsable) {
       problems.push(
         `Frame quality ${quality.toFixed(2)} is below the 0.45 needed to measure this face. No level is offered, which is the correct output rather than a missing one.`,
       );
     }
-    if (!levelStable && assessment && alternateLevel !== null) {
-      problems.push(
-        `Re-measured at a different scale this face read as level ${alternateLevel} rather than ${assessment?.facialTension}. The reading sits on a boundary.`,
-      );
-    }
-
     out.push({
       index: i,
       name: images[i].name,
@@ -240,6 +187,7 @@ export const analyseStills = async (
       problems,
       faceFound: true,
       assessment,
+      geometry,
       faceBoxPx,
       levelStable,
       alternateLevel,

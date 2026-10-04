@@ -162,7 +162,7 @@ export const StillAnalysis = () => {
             faceFound: d.frame.faceFound,
             quality: d.frame.quality,
             activations: d.frame.activations,
-            geometry: d.assessment?.measures ?? null,
+            geometry: d.frame.geometry ?? null,
             facialTension: d.assessment?.facialTension ?? null,
             faceBoxPx: d.frame.faceBoxPx,
             levelStable: d.frame.levelStable,
@@ -192,7 +192,7 @@ export const StillAnalysis = () => {
           clinician || 'unattributed',
           mode === 'single' ? 'stills.single-image-score' : 'stills.described',
           mode === 'single'
-            ? 'Single-image facial score requested without a baseline. Uncalibrated geometry only; no complete pain score or NFCS epoch. Warning displayed. Unusable or unstable measurements withheld.'
+            ? 'Single-image review requested without a baseline. Technical geometry only; no automatic COMFORT item, pain score or NFCS epoch. Clinician observation required.'
             : `${described.length} still image(s) described without a reference. No coding was produced.`,
         );
         return;
@@ -241,7 +241,7 @@ export const StillAnalysis = () => {
           quality: frame.quality,
           activations: frame.activations,
           coded: actions,
-          geometry: frame.assessment?.measures ?? null,
+          geometry: frame.geometry ?? null,
           facialTension: frame.assessment?.facialTension ?? null,
           faceBoxPx: frame.faceBoxPx,
           levelStable: frame.levelStable,
@@ -359,8 +359,8 @@ export const StillAnalysis = () => {
                 },
                 {
                   id: 'single',
-                  label: 'Score one image without a baseline',
-                  blurb: 'Experimental COMFORT facial tension estimate from one photograph. No calm images needed. Warning shown; human confirmation required before applying the item.',
+                  label: 'Review one image without a baseline',
+                  blurb: 'Review one photograph and confirm the facial item yourself. No baseline required. No automatic pain or COMFORT prediction.',
                   available: true,
                 },
                 {
@@ -404,24 +404,18 @@ export const StillAnalysis = () => {
 
         {mode === 'describe' && (
           <Callout tone="warn" title="Uncalibrated reading">
-            You will get a level on the COMFORT facial tension scale, 2 to 5, derived
-            from facial geometry normalised to interocular distance rather than to this
-            infant's own resting face. That measures the photograph rather than
-            classifying it, which is why it is offered where thresholding a blendshape
-            score is not. It is uncalibrated, not comparable between infants or
-            sessions, never reaches level 1, and is never filled into a scale on its
-            own. The raw activations are shown alongside it.
+            This route shows image measurements without assigning facial actions,
+            muscle tension or pain. Review the photograph and record your observed
+            facial item in the instrument form. No automatic COMFORT level is produced.
           </Callout>
         )}
 
         {mode === 'single' && (
           <Callout tone="warn" title="Warning: single image, no baseline">
-            This option estimates only the COMFORT facial tension item (2–5) from
-            one photograph. It is experimental and uncalibrated, not a complete pain
-            score. A photograph cannot reliably distinguish pain from sleep, blinking,
-            crying or yawning. No score is offered if the face is unusable or the
-            measurement is unstable. Review the image and confirm the item yourself;
-            do not use this estimate alone to guide treatment.
+            Review one photograph without a baseline. The tool shows the image and
+            technical measurements; it does not infer a pain score or COMFORT level.
+            Confirm relaxed facial muscles as 1/5, or score another level in the
+            instrument form. All remaining items require observation.
           </Callout>
         )}
 
@@ -487,7 +481,7 @@ export const StillAnalysis = () => {
         <div className="flex flex-wrap gap-2 items-center">
           <Button onClick={() => void run()} disabled={!ready || busy}>
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ScanLine className="w-4 h-4" />}
-            {busy ? `Coding... ${(progress * 100).toFixed(0)}%` : mode === 'single' ? 'Score this image' : 'Code these images'}
+            {busy ? `Coding... ${(progress * 100).toFixed(0)}%` : mode === 'single' ? 'Review this image' : 'Code these images'}
           </Button>
           {(baselineImages.length > 0 || scoreImages.length > 0) && (
             <Button
@@ -572,9 +566,8 @@ export const StillAnalysis = () => {
           {description && (
             <div className="space-y-4">
               <Callout tone="warn" title="Uncalibrated: read it, do not trend it">
-                No settled reference for this infant was supplied, so each level below
-                comes from facial geometry rather than from this infant's own resting
-                face. Individual NFCS actions are still not called present or absent,
+                No automatic facial level is calculated. Image measurements are not
+                muscle tension or pain scores. Individual NFCS actions are still not called present or absent,
                 because that does require a per-infant baseline.
               </Callout>
               {description.map((d) => (

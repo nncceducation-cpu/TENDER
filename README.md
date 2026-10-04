@@ -8,7 +8,7 @@ On-device clinical decision support for neonatal pain assessment, post-operative
 analgesia and opioid weaning. Successor to PainWise NICU, rebuilt around the
 Alberta Children's Hospital NICU protocol.
 
-> **Research software release 2.8.1.** Not validated at any site, not reviewed by a research ethics
+> **Research software release 2.8.2.** Not validated at any site, not reviewed by a research ethics
 > board or a regulator, and carrying open questions about opioid dosing. Nothing
 > it produces should be used to treat an infant. See Status and safety below.
 
@@ -27,7 +27,7 @@ Expanded photo, expression-phase and clip tests: [2.8.0 report](docs/STRESS-TEST
 [source library](docs/MEDIA-LIBRARY-2.8.0.json), and [reproduction instructions](docs/MEDIA-TESTING.md).
 
 For one photograph without calm baseline images, choose **Static analysis → Score one image
-without a baseline → Score this image**. The warning-labelled result is an experimental,
+without a baseline → Review this image**. The warning-labelled result is an experimental,
 uncalibrated COMFORT facial tension item (2–5), not a complete pain score. Quality and
 stability checks still apply; accepting the suggested item requires confirmation on the
 scoring form.
@@ -244,3 +244,5 @@ signal from a signal acquisition system. Treat it as investigational.
 Not yet licensed. Add one before this leaves the unit.
 
 In a report, **I confirm relaxed facial muscles — offer 1/5** records a human observation separately from the model estimate. Closed eyelids alone no longer produce high facial tension. The scoring screen also compares PIPP-R, BIIP and the other instruments; BIIP is documented but is not yet calculated. See [release verification](docs/SINGLE-IMAGE-SCORING-2.8.1.md).
+
+Photo reports no longer calculate automatic COMFORT levels or tension percentages. See [correction and limitations](docs/PHOTO-SCORING-CORRECTION-2.8.2.md).

@@ -10,6 +10,21 @@ const service = (results: ReturnType<typeof makeResult>[]) => new FakeLandmarker
 const input = [{ name: 'test.jpg', dataUrl: 'data:test' }];
 
 describe('ambiguous and incomplete media measurements', () => {
+  it.each([
+    [.013, .005, .271], // First user-reported sleeping face.
+    [.009, .157, .202], // Second user-reported sleeping face, formerly 3/5.
+    [.01, .45, .1], // Even strong geometric deviations cannot invent a clinical item.
+    [.15, 0, .3],
+  ])('never exports or offers a geometric COMFORT level (%s, %s, %s)', async (aperture, mouthOpening, browToEye) => {
+    setImageSize(1280, 720);
+    const face = makeResult({ face: makeFace({ aperture, mouthOpening, browToEye }) });
+    const frames = await analyseStills(service([face]), input);
+    expect(frames[0].assessment).toBeNull();
+    expect(frames[0].alternateLevel).toBeNull();
+    expect(frames[0].levelStable).toBe(false);
+    expect(frames[0].geometry).not.toBeNull();
+    expect(describeStills(frames)[0].assessment).toBeNull();
+  });
   it('withholds a closed-eye-only reading throughout the report pipeline', async () => {
     setImageSize(1280, 720);
     const resting = makeResult({ face: makeFace({ aperture: .013, mouthOpening: .005, browToEye: .271 }) });
@@ -19,7 +34,7 @@ describe('ambiguous and incomplete media measurements', () => {
     expect(frames[0].assessment).toBeNull();
     expect(frames[0].levelStable).toBe(false);
     expect(describeStills(frames)[0].assessment).toBeNull();
-    expect(frames[0].problems.join(' ')).toMatch(/sleep or blinking/);
+    expect(frames[0].problems.join(' ')).toMatch(/Automatic COMFORT/);
   });
   it('does not select the first person in a multiple-face frame', async () => {
     setImageSize(1280, 720);
@@ -37,7 +52,7 @@ describe('ambiguous and incomplete media measurements', () => {
     setImageSize(1280, 720);
     const [frame] = await analyseStills(service([makeResult(), makeResult(), makeResult({ noFace: true })]), input);
     expect(frame.assessment).toBeNull(); expect(frame.levelStable).toBe(false);
-    expect(frame.problems.join(' ')).toMatch(/second-scale/);
+    expect(frame.problems.join(' ')).toMatch(/Automatic COMFORT/);
   });
   it('withholds a level when reflection changes the measured expression', async () => {
     setImageSize(1280, 720);
@@ -45,7 +60,7 @@ describe('ambiguous and incomplete media measurements', () => {
     const tense = makeResult({ face: makeFace({ aperture: .01, mouthOpening: .45, browToEye: .10 }) });
     const [frame] = await analyseStills(service([calm, calm, calm, tense]), input);
     expect(frame.assessment).toBeNull(); expect(frame.levelStable).toBe(false);
-    expect(frame.problems.join(' ')).toMatch(/Reflection changed/);
+    expect(frame.problems.join(' ')).toMatch(/Automatic COMFORT/);
   });
   it('preserves good images and original ordering around a corrupt image', async () => {
     setImageSize(1280, 720);
