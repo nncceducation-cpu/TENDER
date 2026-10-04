@@ -74,6 +74,7 @@ interface AppState {
    * two are now separate screens.
    */
   proposedFacialTension: number | null;
+  proposedFacialTensionSource: 'model' | 'clinician';
   /**
    * Per-sample rows from the most recent coding run, kept so they can be
    * exported. A summary nobody can recompute is a summary nobody should trust.
@@ -92,7 +93,7 @@ interface AppState {
   clearFacialReadings: () => void;
   setCalibration: (c: InfantCalibration | null) => void;
   setAiEvidence: (e: AiEvidence | null) => void;
-  proposeFacialTension: (level: number | null) => void;
+  proposeFacialTension: (level: number | null, source?: 'model' | 'clinician') => void;
   setRawFrames: (rows: RawFrameRow[]) => void;
   reset: () => void;
   exportSession: () => string;
@@ -127,6 +128,7 @@ export const useStore = create<AppState>((set, get) => ({
   calibration: null,
   latestAiEvidence: null,
   proposedFacialTension: null,
+  proposedFacialTensionSource: 'model',
   rawFrames: [],
 
   audit: new AuditLog(),
@@ -201,7 +203,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   setAiEvidence: (latestAiEvidence) => set({ latestAiEvidence }),
 
-  proposeFacialTension: (proposedFacialTension) => set({ proposedFacialTension }),
+  proposeFacialTension: (proposedFacialTension, source = 'model') => set({ proposedFacialTension, proposedFacialTensionSource: source }),
 
   setRawFrames: (rawFrames) => set({ rawFrames }),
 
@@ -221,6 +223,7 @@ export const useStore = create<AppState>((set, get) => ({
       calibration: null,
       latestAiEvidence: null,
       proposedFacialTension: null,
+      proposedFacialTensionSource: 'model',
       rawFrames: [],
       audit: new AuditLog(),
       screen: 'dashboard',

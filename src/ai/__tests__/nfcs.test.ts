@@ -619,7 +619,8 @@ describe('reading a single image from geometry', () => {
     const everything = readSingleImage(
       measures({ eyeAperture: 0.005, mouthOpening: 0.4, browToEye: 0.12 }),
     );
-    expect(oneRegion.facialTension).toBeGreaterThan(calm.facialTension);
+    expect(oneRegion.scoreAvailable).toBe(false);
+    expect(oneRegion.facialTension).toBe(calm.facialTension);
     expect(everything.facialTension).toBeGreaterThan(oneRegion.facialTension);
     expect(everything.facialTension).toBe(5);
   });
@@ -629,7 +630,8 @@ describe('reading a single image from geometry', () => {
     const brow = readSingleImage(measures({ browToEye: 0.12 }));
     const eyes = readSingleImage(measures({ eyeAperture: 0.02 }));
     expect(brow.regions.find((r) => r.region === 'Brow')!.reliability).toBe('weak');
-    expect(eyes.overallTension).toBeGreaterThan(brow.overallTension);
+    expect(eyes.scoreAvailable).toBe(false);
+    expect(eyes.overallTension).toBe(0);
   });
 
   it('always states that it is uncalibrated and not comparable', async () => {

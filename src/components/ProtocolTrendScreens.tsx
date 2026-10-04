@@ -85,6 +85,7 @@ export const ProtocolScreen = () => (
               {u.shape}. {u.bestFor}. {u.population}.
             </p>
             <p className="text-sm text-slate-700 mt-1">{u.whyNotHere}</p>
+            {u.sourceUrl && <a className="text-sm underline text-sky-700" href={u.sourceUrl} target="_blank" rel="noreferrer">Original validation study</a>}
           </div>
         ))}
       </div>

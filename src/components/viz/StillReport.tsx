@@ -30,12 +30,24 @@ export const StillReport = ({
   d,
   imageUrl,
   onPropose,
+  singleImageScore = false,
+  onConfirmRelaxed,
 }: {
   d: StillDescription;
   imageUrl?: string;
   onPropose?: (level: number) => void;
+  singleImageScore?: boolean;
+  onConfirmRelaxed?: () => void;
 }) => {
   const a = d.assessment;
+  const relaxedConfirmation = onConfirmRelaxed && imageUrl && d.frame.faceFound ? (
+    <div className="mt-3 rounded-lg border border-slate-200 p-3 text-sm">
+      <p>If you observe fully relaxed facial muscles, you can confirm COMFORT facial tension 1/5. Sleeping alone does not prove the absence of pain; assess the other items.</p>
+      <Button variant="ghost" onClick={onConfirmRelaxed}>
+        I confirm relaxed facial muscles — offer 1/5
+      </Button>
+    </div>
+  ) : null;
 
   if (!a) {
     return (
@@ -46,6 +58,8 @@ export const StillReport = ({
         <p className="text-sm mt-1" style={{ color: INK.secondary }}>
           No facial level is offered for this image.
         </p>
+        {imageUrl && <img src={imageUrl} alt="Image supplied for facial assessment" className="mt-3 max-h-80 rounded-lg object-contain" />}
+        {relaxedConfirmation}
         <ul className="text-xs list-disc list-inside mt-2">
           {(d.frame.problems.length ? d.frame.problems : [d.frame.faceFound ? "Landmarks were insufficient or quality was too low." : "No face detected."]).map(problem => <li key={problem}>{problem}</li>)}
         </ul>
@@ -69,7 +83,7 @@ export const StillReport = ({
       >
         <CircleCheck className="w-[18px] h-[18px]" style={{ color: '#0f766e' }} />
         <p className="font-semibold text-sm flex-1 truncate" style={{ color: INK.primary }}>
-          Facial analysis report
+          {singleImageScore ? 'Single-image facial score — no baseline' : 'Facial analysis report'}
         </p>
         <span className="text-xs truncate max-w-[45%]" style={{ color: INK.muted }}>
           {d.frame.name}
@@ -77,6 +91,13 @@ export const StillReport = ({
       </div>
 
       <div className="p-4 space-y-4">
+        {singleImageScore && (
+          <p className="text-sm rounded-lg bg-amber-50 border border-amber-300 px-3 py-2 text-amber-950">
+            Warning: experimental, uncalibrated facial item only. This is not a complete
+            pain score and does not establish or exclude pain. Confirm the item yourself
+            before applying it to COMFORT scoring.
+          </p>
+        )}
         <div className="flex gap-3 flex-wrap">
           <ReportTile
             label="COMFORT facial tension"
@@ -168,6 +189,7 @@ export const StillReport = ({
           </Button>
         )}
 
+        {relaxedConfirmation}
         <details className="text-sm">
           <summary className="cursor-pointer text-xs" style={{ color: INK.secondary }}>
             Raw activations behind the coding

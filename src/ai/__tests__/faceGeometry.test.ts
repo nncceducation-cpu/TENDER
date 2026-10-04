@@ -94,3 +94,32 @@ describe('the reference the levels are read against', () => {
     expect(RELAXED_REFERENCE.browNeutral).toBe(0.24);
   });
 });
+
+
+describe('sleep and blink ambiguity', () => {
+  it("withholds the exact geometry shown in the user's sleeping-infant report", () => {
+    const r = readSingleImage(measures({ eyeAperture: 0.013, mouthOpening: 0.005, browToEye: 0.271 }));
+    expect(r.scoreAvailable).toBe(false);
+    expect(r.regions.find(x => x.region === 'Eyes')!.tension).toBe(0);
+    expect(r.overallTension).toBe(0);
+    expect(r.caveats.join(' ')).toMatch(/No facial level is available/);
+  });
+
+  it('does not turn isolated partial or full closure into a high level', () => {
+    for (const eyeAperture of [0, 0.013, 0.02, 0.03, 0.06, 0.08]) {
+      const r = readSingleImage(measures({ eyeAperture, mouthOpening: 0, browToEye: 0.3 }));
+      expect(r.scoreAvailable).toBe(false);
+      expect(r.overallTension).toBe(0);
+    }
+  });
+
+  it('does not let closed lids dominate small independent measurements', () => {
+    const r = readSingleImage(measures({ eyeAperture: 0.013, mouthOpening: 0.025, browToEye: 0.229 }));
+    expect(r.facialTension).toBeLessThan(4);
+    expect(r.regions.find(x => x.region === 'Eyes')!.tension).toBeCloseTo(.11);
+  });
+
+  it('retains an experimental proposal when other regions also contribute' , () => {
+    expect(readSingleImage(measures({ eyeAperture: 0.02, mouthOpening: 0.3, browToEye: 0.14 })).scoreAvailable).toBe(true);
+  });
+});

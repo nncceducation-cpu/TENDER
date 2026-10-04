@@ -40,13 +40,14 @@ const readFiles = async (files: FileList): Promise<Picked[]> =>
   );
 
 const DropZone = ({
-  label, hint, count, onPick, disabled,
+  label, hint, count, onPick, disabled, multiple = true,
 }: {
   label: string;
   hint: string;
   count: number;
   onPick: (files: FileList) => void;
   disabled?: boolean;
+  multiple?: boolean;
 }) => {
   const ref = useRef<HTMLInputElement>(null);
   return (
@@ -69,7 +70,7 @@ const DropZone = ({
         ref={ref}
         type="file"
         accept="image/*"
-        multiple
+        multiple={multiple}
         className="hidden"
         onChange={(e) => e.target.files && onPick(e.target.files)}
       />
@@ -102,7 +103,7 @@ export const StillAnalysis = () => {
    * not exist, and refusing to look at the image at all is not the only honest
    * response to that.
    */
-  const [mode, setMode] = useState<'settled' | 'reuse' | 'self' | 'describe'>('settled');
+  const [mode, setMode] = useState<'settled' | 'reuse' | 'self' | 'describe' | 'single'>('settled');
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -123,11 +124,19 @@ export const StillAnalysis = () => {
   const usingExisting = mode === 'reuse' && existing !== null;
 
   const run = async () => {
+    if (mode === 'single' && scoreImages.length !== 1) {
+      setError('Choose exactly one image for single-image scoring.');
+      return;
+    }
     setBusy(true);
     setError(null);
     setResult(null);
     setDescription(null);
     setProgress(0);
+    if (mode === 'single' || mode === 'describe') {
+      setAiEvidence(null);
+      onProposeTension(null);
+    }
 
     try {
       serviceRef.current ??= new FaceLandmarkerService();
@@ -135,8 +144,9 @@ export const StillAnalysis = () => {
 
       const scoredFirst = mode === 'self' || mode === 'describe' || usingExisting;
 
-      // Describe-only never establishes a reference and never codes anything.
-      if (mode === 'describe') {
+      // A baseline-free photograph supports only the uncalibrated facial item,
+      // never an NFCS epoch or a complete pain instrument.
+      if (mode === 'describe' || mode === 'single') {
         const frames = await analyseStills(serviceRef.current, scoreImages, setProgress);
         const described = describeStills(frames);
         if (described.length === 0) {
@@ -180,8 +190,10 @@ export const StillAnalysis = () => {
         );
         void audit.append(
           clinician || 'unattributed',
-          'stills.described',
-          `${described.length} still image(s) described without a reference. No coding was produced.`,
+          mode === 'single' ? 'stills.single-image-score' : 'stills.described',
+          mode === 'single'
+            ? 'Single-image facial score requested without a baseline. Uncalibrated geometry only; no complete pain score or NFCS epoch. Warning displayed. Unusable or unstable measurements withheld.'
+            : `${described.length} still image(s) described without a reference. No coding was produced.`,
         );
         return;
       }
@@ -297,7 +309,7 @@ export const StillAnalysis = () => {
 
   const ready =
     scoreImages.length > 0 &&
-    (mode === 'describe' ||
+    ((mode === 'single' && scoreImages.length === 1) || mode === 'describe' ||
       usingExisting ||
       (mode === 'self' && scoreImages.length >= MIN_BASELINE_STILLS) ||
       (mode === 'settled' && baselineImages.length >= MIN_BASELINE_STILLS));
@@ -346,6 +358,12 @@ export const StillAnalysis = () => {
                   available: true,
                 },
                 {
+                  id: 'single',
+                  label: 'Score one image without a baseline',
+                  blurb: 'Experimental COMFORT facial tension estimate from one photograph. No calm images needed. Warning shown; human confirmation required before applying the item.',
+                  available: true,
+                },
+                {
                   id: 'describe',
                   label: 'No reference: describe only',
                   blurb:
@@ -356,8 +374,13 @@ export const StillAnalysis = () => {
             ).map((m) => (
               <button
                 key={m.id}
-                disabled={!m.available}
-                onClick={() => setMode(m.id)}
+                disabled={!m.available || busy}
+                onClick={() => {
+                  setMode(m.id);
+                  setDescription(null);
+                  setResult(null);
+                  setError(null);
+                }}
                 className={`text-left p-3 rounded-lg border transition ${
                   mode === m.id
                     ? 'border-sky-500 bg-sky-50 ring-1 ring-sky-300'
@@ -391,12 +414,24 @@ export const StillAnalysis = () => {
           </Callout>
         )}
 
+        {mode === 'single' && (
+          <Callout tone="warn" title="Warning: single image, no baseline">
+            This option estimates only the COMFORT facial tension item (2–5) from
+            one photograph. It is experimental and uncalibrated, not a complete pain
+            score. A photograph cannot reliably distinguish pain from sleep, blinking,
+            crying or yawning. No score is offered if the face is unusable or the
+            measurement is unstable. Review the image and confirm the item yourself;
+            do not use this estimate alone to guide treatment.
+          </Callout>
+        )}
+
         <div className={`grid gap-4 ${mode === 'settled' ? 'sm:grid-cols-2' : ''}`}>
           {mode === 'settled' && (
           <DropZone
             label="Settled baseline images"
             hint={`At least ${MIN_BASELINE_STILLS}, infant calm and unhandled`}
             count={baselineImages.length}
+            disabled={busy}
             onPick={async (files) => {
               try {
                 setBaselineImages(await readFiles(files));
@@ -408,16 +443,20 @@ export const StillAnalysis = () => {
           />
           )}
           <DropZone
-            label={mode === 'describe' ? 'Images to describe' : 'Images to score'}
+            label={mode === 'single' ? 'Single image to score' : mode === 'describe' ? 'Images to describe' : 'Images to score'}
             hint={
               mode === 'self'
                 ? `At least ${MIN_BASELINE_STILLS}, since these are also the reference`
-                : 'One or many'
+                : mode === 'single' ? 'Choose one photograph; no baseline needed' : 'One or many'
             }
             count={scoreImages.length}
+            multiple={mode !== 'single'}
+            disabled={busy}
             onPick={async (files) => {
               try {
                 setScoreImages(await readFiles(files));
+                setDescription(null);
+                setResult(null);
                 setError(null);
               } catch (e) {
                 setError(e instanceof Error ? e.message : String(e));
@@ -426,7 +465,7 @@ export const StillAnalysis = () => {
           />
         </div>
 
-        {scoreImages.length > 1 && (
+        {scoreImages.length > 1 && mode !== 'single' && (
           <label className="flex items-start gap-3 text-sm text-slate-700">
             <input
               type="checkbox"
@@ -448,7 +487,7 @@ export const StillAnalysis = () => {
         <div className="flex flex-wrap gap-2 items-center">
           <Button onClick={() => void run()} disabled={!ready || busy}>
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ScanLine className="w-4 h-4" />}
-            {busy ? `Coding... ${(progress * 100).toFixed(0)}%` : 'Code these images'}
+            {busy ? `Coding... ${(progress * 100).toFixed(0)}%` : mode === 'single' ? 'Score this image' : 'Code these images'}
           </Button>
           {(baselineImages.length > 0 || scoreImages.length > 0) && (
             <Button
@@ -458,11 +497,15 @@ export const StillAnalysis = () => {
                 setBaselineImages([]);
                 setScoreImages([]);
                 setResult(null);
+                setDescription(null);
                 setError(null);
               }}
             >
               Clear
             </Button>
+          )}
+          {mode === 'single' && scoreImages.length > 1 && (
+            <span className="text-xs text-slate-500">Choose exactly one image for this option.</span>
           )}
           {!ready && scoreImages.length > 0 && mode === 'settled' && (
             <span className="text-xs text-slate-500">
@@ -539,7 +582,12 @@ export const StillAnalysis = () => {
                   key={d.frame.name + d.frame.index}
                   d={d}
                   imageUrl={scoreImages[d.frame.index]?.dataUrl}
-                  onPropose={onProposeTension}
+                  onPropose={(level) => onProposeTension(level)}
+                  onConfirmRelaxed={() => {
+                    onProposeTension(1, 'clinician');
+                    void audit.append(clinician || 'unattributed', 'stills.relaxed-confirmed', 'Clinician confirmed fully relaxed facial muscles and offered COMFORT facial tension 1/5. This is a manual observation, not a model-derived score or a complete pain assessment.');
+                  }}
+                  singleImageScore={mode === 'single'}
                 />
               ))}
             </div>

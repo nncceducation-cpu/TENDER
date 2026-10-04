@@ -149,6 +149,8 @@ export interface SingleImageAssessment {
    * COMFORTneo's `facial_tension`. Uncalibrated: see `caveats`.
    */
   facialTension: 1 | 2 | 3 | 4 | 5;
+  /** False when eyelid closure is the only geometric signal. Do not offer a level. */
+  scoreAvailable: boolean;
   anchor: string;
   regions: RegionReading[];
   /** Mean tension across regions, weighted by reliability. */
@@ -217,39 +219,29 @@ const band = (value: number, high: number, low: number): number => {
 export const readSingleImage = (m: GeometryMeasures): SingleImageAssessment => {
   const R = RELAXED_REFERENCE;
 
-  const eyeTension = band(m.eyeAperture, R.eyeApertureOpen, R.eyeApertureClosed);
+  const eyelidClosure = band(m.eyeAperture, R.eyeApertureOpen, R.eyeApertureClosed);
   const browTension = band(m.browToEye, R.browNeutral, R.browLowered);
   const mouthOpen = Math.max(
     0,
     Math.min(1, (m.mouthOpening - R.mouthClosed) / (R.mouthWideOpen - R.mouthClosed)),
   );
 
-  /**
-   * An open mouth is not a pain sign on its own, and treating it as one was the
-   * single largest error in this module.
-   *
-   * Tested against three photographs of calm, content infants, every one scored
-   * COMFORT facial tension 3 of 5. In all three the mouth was open and carried
-   * 46 to 56 per cent of the reading at full weight, while the eyes were wide
-   * open. A smile, a yawn, a vocalisation, a feeding cue and a pain grimace all
-   * open the mouth; what separates the last one is the eyes.
-   *
-   * NFCS says the same thing. The pain constellation is brow bulge, eye squeeze
-   * and nasolabial furrow together, and eye squeeze is the most discriminating
-   * of the three. An infant with wide open eyes is not making a pain face,
-   * whatever the mouth is doing. So mouth opening only enters the tension
-   * calculation once the eyes are no longer clearly open, and until then it is
-   * reported as a measurement rather than counted as tension.
-   */
-  const eyesClearlyOpen = eyeTension < R.eyeSqueezeFloor;
+  // Aperture measures eyelid closure, not contraction of the eye muscles.
+  // Neither sleep nor blinking can be distinguished from a squeeze here.
+  const eyesClearlyOpen = eyelidClosure < R.eyeSqueezeFloor;
   const mouthTension = eyesClearlyOpen ? 0 : mouthOpen;
+  const closureOnly = !eyesClearlyOpen && mouthTension === 0 && browTension === 0;
+  const scoreAvailable = !closureOnly;
+  // Closure cannot carry more tension than the strongest independent region.
+  // This conservative cap is a heuristic, not a validated contraction detector.
+  const eyeTension = Math.min(eyelidClosure, Math.max(browTension, mouthTension));
 
   const regions: RegionReading[] = [
     {
       region: 'Eyes',
       tension: eyeTension,
       reliability: 'good',
-      reading: `Aperture ${m.eyeAperture.toFixed(3)} of interocular distance. An open, relaxed eye sits near ${R.eyeApertureOpen}; a squeezed eye approaches zero. This is the measure that separates a pain grimace from a yawn or a smile.`,
+      reading: `Aperture ${m.eyeAperture.toFixed(3)} of interocular distance. This measures eyelid closure, not eye-muscle contraction. Sleep, blinking and squeezing can all produce a small aperture. Closure alone is not counted as tension; its contribution is capped by the strongest other region. This cap is experimental and cannot establish eye squeeze.`,
     },
     {
       region: 'Mouth',
@@ -257,7 +249,7 @@ export const readSingleImage = (m: GeometryMeasures): SingleImageAssessment => {
       reliability: 'moderate',
       reading: eyesClearlyOpen
         ? `Lip separation ${m.mouthOpening.toFixed(3)} of interocular distance, ${(mouthOpen * 100).toFixed(0)}% of the way to a wide opening. Not counted as tension here, because the eyes are open and an open mouth with open eyes is a yawn, a vocalisation or a smile at least as often as it is pain.`
-        : `Lip separation ${m.mouthOpening.toFixed(3)} of interocular distance, width ${m.mouthWidth.toFixed(3)}. Counted, because the eyes are not clearly open.`,
+        : `Lip separation ${m.mouthOpening.toFixed(3)} of interocular distance, width ${m.mouthWidth.toFixed(3)}. An experimental geometric contribution; closed eyes and mouth opening do not establish pain.`,
     },
     {
       region: 'Brow',
@@ -288,14 +280,12 @@ export const readSingleImage = (m: GeometryMeasures): SingleImageAssessment => {
   else if (overallTension < 0.75) level = 4;
   else level = 5;
 
-  /**
-   * And a hard ceiling. With the eyes clearly open there is no eye squeeze, so
-   * the NFCS pain constellation is not present and no amount of brow or mouth
-   * arithmetic should push this above normal facial tone.
-   */
+  // Existing conservative cap: this is not an NFCS action classifier and
+  // open eyes cannot exclude pain. The caveat below states that limitation.
   if (eyesClearlyOpen && level > 2) level = 2;
 
   const caveats = [
+    ...(closureOnly ? ['Eyelid closure is the only measured signal. No facial level is available: sleep, blinking and eye squeeze cannot be distinguished from aperture alone.'] : []),
     'A photograph cannot distinguish sleep, blinking, crying and pain reliably. This reading does not establish pain or exclude it.',
     'Uncalibrated. No settled reference for this infant was supplied, so this reading uses geometry normalised to interocular distance rather than to this infant\'s own resting face.',
     'Not comparable between infants or between sessions. Use it as a structured reading of this photograph, not as a score to trend.',
@@ -310,7 +300,7 @@ export const readSingleImage = (m: GeometryMeasures): SingleImageAssessment => {
   }
   if (eyesClearlyOpen) {
     caveats.push(
-      'The eyes are clearly open, so the level is capped at 2. Eye squeeze is the discriminating action in the NFCS pain constellation, and without it an open mouth or a lowered brow is not read as a pain face. The cost of that rule is the opposite error: an infant in genuine pain whose eyes stay open will be under-called here. Do not use this reading to rule pain out.',
+      'The eyes are clearly open, so the level is capped at 2. This is an experimental geometric cap, not an NFCS finding. The cost of that rule is the opposite error: an infant in genuine pain whose eyes stay open will be under-called here. Do not use this reading to rule pain out.',
     );
   }
   if (m.eyeAperture <= RELAXED_REFERENCE.eyeApertureClosed) {
@@ -321,6 +311,7 @@ export const readSingleImage = (m: GeometryMeasures): SingleImageAssessment => {
 
   return {
     facialTension: level,
+    scoreAvailable,
     anchor: ANCHORS[level],
     regions,
     overallTension,

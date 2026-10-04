@@ -202,6 +202,17 @@ export const AssessScreen = () => {
         </div>
       </Card>
 
+      <Card title="What each instrument adds">
+        <p className="text-sm text-slate-700">A facial photograph measures only part of an assessment. Choose the instrument for the clinical situation and score all its required observations.</p>
+        <ul className="mt-2 text-sm text-slate-700 space-y-2">
+          <li><strong>PIPP-R:</strong> combines facial actions, heart-rate and oxygen-saturation changes with gestational age and behavioral context. TENDER uses the revised PIPP rather than the original version, and retains its zero-core contextual rule. <a href="https://pubmed.ncbi.nlm.nih.gov/24491511/" target="_blank" rel="noreferrer" className="underline">Validation</a></li>
+          <li><strong>BIIP:</strong> adds sleep/wake state and hand actions (finger splay and fisting) to facial actions. It is reviewed in the evidence library but its calculator is not implemented. A face-only image cannot complete it. <a href="https://pubmed.ncbi.nlm.nih.gov/17382473/" target="_blank" rel="noreferrer" className="underline">Original study</a></li>
+          <li><strong>NIPS:</strong> includes facial expression, cry, breathing, limbs and arousal. Quiet sleep and relaxed expression have zero-point options.</li>
+          <li><strong>N-PASS / COMFORTneo:</strong> include observations beyond the face for ongoing pain or sedation assessment. Confirmed relaxed facial muscles are COMFORT facial tension 1/5.</li>
+          <li><strong>CRIES / EDIN / NFCS:</strong> offer postoperative, prolonged-pain or facial-action assessments respectively. WAT-1 is a withdrawal assessment and is separate from pain scoring.</li>
+        </ul>
+      </Card>
+
       {chosen?.blockers.length ? (
         <Callout tone="danger" title="This instrument cannot measure this infant">
           {chosen.blockers.join(' ')}
@@ -215,14 +226,19 @@ export const AssessScreen = () => {
       {s.proposedFacialTension !== null && items.some((i) => i.id === 'facial_tension') && (
         <Callout tone="info" title={`A facial tension level of ${s.proposedFacialTension} is available`}>
           <p>
-            Read from an image on the analysis screen. Nothing has been scored with it.
+            {s.proposedFacialTensionSource === 'clinician'
+              ? 'You confirmed relaxed facial muscles on the analysis screen. This is your observed finding, not a model prediction.'
+              : 'Read from an image on the analysis screen. This geometric estimate is uncalibrated and may have no resting baseline.'}
+            {' '}Nothing has been scored with it.
+            {' '}It does not establish or exclude pain. Confirm the facial item yourself;
+            the remaining instrument items still require assessment.
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             <Button
               onClick={() => {
                 setValues((v) => ({
                   ...v,
-                  facial_tension: { value: s.proposedFacialTension!, fromAi: true },
+                  facial_tension: { value: s.proposedFacialTension!, fromAi: s.proposedFacialTensionSource !== 'clinician' },
                 }));
                 s.proposeFacialTension(null);
               }}

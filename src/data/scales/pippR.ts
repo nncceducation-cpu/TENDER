@@ -148,7 +148,7 @@ export const PIPP_R: ScaleDefinition = {
     {
       citation:
         'Gibbins S, Stevens BJ, Yamada J, et al. Validation of the Premature Infant Pain Profile-Revised (PIPP-R). Early Hum Dev. 2014;90(4):189-193.',
-      pmid: '24491306',
+      pmid: '24491511',
       doi: '10.1016/j.earlhumdev.2014.01.005',
     },
   ],
