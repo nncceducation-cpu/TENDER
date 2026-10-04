@@ -38,8 +38,12 @@ const ProposalNote = () => {
 export const StaticAnalysisScreen = () => (
   <div className="space-y-5">
     <ProposalNote />
-    <StillAnalysis />
     <VisualResearchAssist />
+    <details className="rounded-xl border border-slate-200 bg-white p-4">
+      <summary className="cursor-pointer font-medium">Local facial measurements and manual review — no AI photo score</summary>
+      <p className="text-sm text-slate-600 my-3">For an automatic description and provisional facial item, use AI photo review above. This optional local route measures landmarks or supports clinician scoring; it does not send photos to OpenAI.</p>
+      <StillAnalysis />
+    </details>
     <details><summary className="cursor-pointer text-sm">Legacy local Gemini configuration</summary><VisionAssist /></details>
   </div>
 );
