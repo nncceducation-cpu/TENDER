@@ -113,7 +113,7 @@ const RailFooter = () => (
     <p className="text-[11px]" style={{ color: '#94a3b8' }}>
       Processing:{' '}
       <span className="font-semibold" style={{ color: '#34d399' }}>
-        on this device
+        local + optional cloud
       </span>
     </p>
     <p className="text-[11px] mt-0.5" style={{ color: '#64748b' }}>
@@ -224,8 +224,9 @@ export const Shell = ({ children }: { children: ReactNode }) => {
               patient.
             </p>
             <p>
-              Camera and image processing runs entirely in this browser. No image, audio or
-              identifiable information is transmitted or written to disk.
+              Local camera, image and audio analysis stays in this browser. Optional cloud
+              photo review transmits the selected image only when you press Send. Exported
+              research records are saved to the location you choose.
             </p>
           </div>
         </footer>

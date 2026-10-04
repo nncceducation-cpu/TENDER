@@ -37,8 +37,8 @@ const CAPABILITIES = [
   },
   {
     icon: Lock,
-    title: 'Nothing leaves this device',
-    body: 'Images, video and audio are processed in this browser and never uploaded, never written to disk and never persisted. Closing the tab destroys the session, deliberately.',
+    title: 'Local analysis and optional cloud review',
+    body: 'Local image, video and audio analysis stays in this browser. Optional AI photo review sends only the selected photo through your configured server to OpenAI when you press Send. Session records stay in memory; export them before closing the tab.',
   },
 ];
 

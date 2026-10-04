@@ -4,6 +4,7 @@ import { FacialCapture } from './FacialCapture';
 import { ClipAnalysis } from './ClipAnalysis';
 import { StillAnalysis } from './StillAnalysis';
 import { VisionAssist } from './VisionAssist';
+import { VisualResearchAssist } from './VisualResearchAssist';
 
 /**
  * The original app split capture into Static Analysis and Live & Video, and that
@@ -38,7 +39,8 @@ export const StaticAnalysisScreen = () => (
   <div className="space-y-5">
     <ProposalNote />
     <StillAnalysis />
-    <VisionAssist />
+    <VisualResearchAssist />
+    <details><summary className="cursor-pointer text-sm">Legacy local Gemini configuration</summary><VisionAssist /></details>
   </div>
 );
 
