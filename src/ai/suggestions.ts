@@ -1,5 +1,6 @@
 import type { AiEvidence, CryFeatures, NfcsWindowSummary, PhysiologicFeatures, ScaleId } from '../domain/types';
 import { UNAVAILABLE_ACTIONS } from './nfcsFeatures';
+import { NFCS_P3 } from '../data/scales/nfcs';
 
 /**
  * Turning facial coding into scale item suggestions.
@@ -80,13 +81,42 @@ export const buildSuggestions = (
       }
 
       if (scaleId === 'NFCS_P3') {
-        for (const action of ['brow_bulge', 'eye_squeeze', 'nasolabial_furrow'] as const) {
-          const seconds = Math.round((facial.proportionPresent[action] ?? 0) * facial.secondsUsable);
-          suggestions[action] = {
-            value: Math.min(10, seconds),
-            confidence: conf,
-            rationale: `Present in ${seconds} of ${facial.secondsUsable} usable seconds.`,
-          };
+        /**
+         * NFCS-P-3 items are counts of seconds, so a short window caps the total
+         * below the instrument's published threshold.
+         *
+         * The scale defines a 10-second epoch scored 0-30 with a clinical
+         * threshold at 9/30. With only two usable seconds the ceiling is 6, so
+         * the total cannot reach 9 however distressed the infant is, and the
+         * banding in the scale definition then reports "below the published
+         * clinical threshold" for a maximal facial response. Measured before
+         * this guard: a two-second window with all three actions present in
+         * every second filled the items as 2/2/2 for a total of 6, at
+         * confidence 1.00, because `windowConfidence` sees full coverage of a
+         * two-second window as complete.
+         *
+         * So the items are withheld when the ceiling sits below the threshold
+         * the scale itself publishes. The numbers come from the scale
+         * definition, not from a judgement made here. A short window is still
+         * reported, as an abstention naming the ceiling, which is the honest
+         * output: it says the observation was too short to score rather than
+         * scoring it as subclinical.
+         */
+        const ceiling = facial.nfcsP3AchievableMax;
+        const threshold = NFCS_P3.bands.find((b) => b.min > 0)?.min ?? null;
+        if (threshold !== null && ceiling < threshold) {
+          abstentions.push(
+            `Only ${facial.secondsUsable} second${facial.secondsUsable === 1 ? '' : 's'} of this window could be coded, so the highest NFCS-P-3 total reachable is ${ceiling} of ${NFCS_P3.range.max}. That is below the published ${threshold}/${NFCS_P3.range.max} threshold, so any score here would read as subclinical whatever the infant's face was doing. Items withheld; record a full ${NFCS_P3.observationWindowSeconds}-second epoch.`,
+          );
+        } else {
+          for (const action of ['brow_bulge', 'eye_squeeze', 'nasolabial_furrow'] as const) {
+            const seconds = Math.round((facial.proportionPresent[action] ?? 0) * facial.secondsUsable);
+            suggestions[action] = {
+              value: Math.min(10, seconds),
+              confidence: conf,
+              rationale: `Present in ${seconds} of ${facial.secondsUsable} usable seconds. Highest total reachable from this window is ${ceiling} of ${NFCS_P3.range.max}.`,
+            };
+          }
         }
       }
 

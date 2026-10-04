@@ -229,10 +229,30 @@ export interface NfcsWindowSummary {
   framesScored: number;
   /** Proportion of scored frames in which each action was present (0-1). */
   proportionPresent: Record<NfcsAction, number>;
-  /** Sum over seconds, per Grunau/Craig convention: 0-70 for 7 actions over 10 s. */
+  /**
+   * Sum over seconds, per Grunau/Craig convention. The published 7-action total
+   * runs 0-70 over a full 10-second epoch, but this figure cannot reach it:
+   * `taut_tongue` has no signal in a face landmarker, so six actions are
+   * codeable and a complete window reaches 60. Compare against
+   * `nfcs7AchievableMax`, never against 70.
+   */
   nfcs7Sum: number;
-  /** Restricted 3-action constellation: 0-30 over 10 s. */
+  /**
+   * Restricted 3-action constellation. Published range 0-30 over a full
+   * 10-second epoch, with a clinical threshold at 9/30. Compare against
+   * `nfcsP3AchievableMax`, not against 30: both sums are counts of seconds, so a
+   * short or partly unusable window has a lower ceiling and a fixed denominator
+   * under-reports pain.
+   */
   nfcsP3Sum: number;
+  /** Highest `nfcs7Sum` this window could have produced: codeable actions x secondsUsable. */
+  nfcs7AchievableMax: number;
+  /** Highest `nfcsP3Sum` this window could have produced: 3 x secondsUsable. */
+  nfcsP3AchievableMax: number;
+  /** Actions for which no signal exists, so they were never coded either way. */
+  actionsUnavailable: NfcsAction[];
+  /** False whenever any action was unavailable, so `nfcs7Sum` is a partial total. */
+  nfcs7Complete: boolean;
   meanQuality: number;
   secondsUsable: number;
 }

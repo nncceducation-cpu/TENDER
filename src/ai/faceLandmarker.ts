@@ -232,15 +232,30 @@ export const mapPointsToOriginal = <T extends { x: number; y: number }>(
 /**
  * Frame quality gate.
  *
- * A face that is too small, too oblique or too dark produces landmark noise that
- * looks exactly like facial action. The model abstains rather than guessing,
- * because a confident wrong "no pain" is worse than no reading at all.
+ * A face that is too small or too oblique produces landmark noise that looks
+ * exactly like facial action. The model abstains rather than guessing, because a
+ * confident wrong "no pain" is worse than no reading at all.
+ *
+ * Exposure is NOT assessed, and the comment here used to claim it was. This
+ * function receives the landmark result and the frame dimensions, never the
+ * pixels, so no luminance can be computed from what it is given: a correctly
+ * framed face in a frame far too dark to code reliably scores 1.0. Adding a
+ * luminance term means choosing a threshold, and no neonatal data exists here to
+ * set one from, so the gap is reported rather than filled with a guess. See
+ * REVIEW_FLAGS['frame-exposure-not-assessed'].
  */
 export interface QualityAssessment {
   quality: number; // 0-1
   usable: boolean;
   problems: string[];
+  /**
+   * Quality dimensions this gate does not measure. Present so a caller can say
+   * what was checked rather than implying everything was.
+   */
+  notAssessed: string[];
 }
+
+const NOT_ASSESSED = ['Exposure and contrast are not measured by this gate.'];
 
 export const assessFrameQuality = (
   result: FaceLandmarkerResult | null,
@@ -249,7 +264,7 @@ export const assessFrameQuality = (
 ): QualityAssessment => {
   const problems: string[] = [];
   if (!result || result.faceLandmarks.length === 0) {
-    return { quality: 0, usable: false, problems: ['No face detected in frame.'] };
+    return { quality: 0, usable: false, problems: ['No face detected in frame.'], notAssessed: NOT_ASSESSED };
   }
 
   const lm = result.faceLandmarks[0];
@@ -286,5 +301,10 @@ export const assessFrameQuality = (
     problems.push('Camera resolution is low for facial action coding.');
   }
 
-  return { quality: Math.max(0, Math.min(1, quality)), usable: quality >= 0.45, problems };
+  return {
+    quality: Math.max(0, Math.min(1, quality)),
+    usable: quality >= 0.45,
+    problems,
+    notAssessed: NOT_ASSESSED,
+  };
 };

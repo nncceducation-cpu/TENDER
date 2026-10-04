@@ -88,13 +88,35 @@ export class TransparentIndex implements PainModel {
     let total = 0;
     let weightUsed = 0;
 
-    if (input.facial) {
-      const v = Math.min(1, input.facial.nfcsP3Sum / 30);
+    /**
+     * The facial arm abstains when nothing in the window was usable.
+     *
+     * It used to test only whether `input.facial` was present. A window in which
+     * the face was never usable arrives as a real summary object with
+     * `secondsUsable: 0` and `nfcsP3Sum: 0`, so the arm contributed its full
+     * weight at value 0 and recorded no abstention. Measured, that produced
+     * index 0.000 for a blind window, identical to a genuinely settled infant
+     * over ten usable seconds, with nothing in the output to tell them apart
+     * except a lower confidence. A measurement that was never taken is not
+     * evidence of comfort.
+     *
+     * The denominator changed with it. Both NFCS sums are counts of seconds, so
+     * their ceiling is `3 x secondsUsable`, not the instrument's nominal 30. A
+     * four-second usable window with all three actions present throughout scored
+     * 0.400 against the fixed 30 when the true fraction was 1.000, under-reporting
+     * pain in the direction that withholds analgesia.
+     */
+    if (!input.facial) {
+      abstentions.push('No facial features in this window.');
+    } else if (input.facial.secondsUsable <= 0 || input.facial.nfcsP3AchievableMax <= 0) {
+      abstentions.push(
+        'A facial window was recorded but no second of it was usable, so the facial arm contributes nothing. This is a blind spot, not a reassuring reading.',
+      );
+    } else {
+      const v = Math.min(1, input.facial.nfcsP3Sum / input.facial.nfcsP3AchievableMax);
       contributions.push({ feature: 'NFCS-P-3 facial activity', weight: WEIGHTS.nfcsP3, value: v });
       total += WEIGHTS.nfcsP3 * v;
       weightUsed += WEIGHTS.nfcsP3;
-    } else {
-      abstentions.push('No facial features in this window.');
     }
 
     if (input.cry?.usable) {
@@ -138,9 +160,21 @@ export class TransparentIndex implements PainModel {
     const facialQuality = input.facial?.meanQuality ?? 0;
     const coverage = weightUsed / Object.values(WEIGHTS).reduce((a, b) => a + b, 0);
 
+    /**
+     * How much of the requested window was actually coded. Mean quality alone
+     * cannot express this: two usable seconds out of thirty can carry a mean
+     * quality of 1.0, which previously reported the same confidence as a fully
+     * coded window. `suggestions.ts` has always folded temporal coverage into
+     * its confidence; this brings the index into line with it.
+     */
+    const windowCoverage =
+      input.facial && input.facial.windowSeconds > 0
+        ? Math.min(1, input.facial.secondsUsable / input.facial.windowSeconds)
+        : 1;
+
     return {
       value: total / weightUsed,
-      confidence: Math.min(1, coverage * (0.4 + 0.6 * facialQuality)),
+      confidence: Math.min(1, coverage * windowCoverage * (0.4 + 0.6 * facialQuality)),
       calibrated: false,
       contributions,
       abstentions,
@@ -197,9 +231,27 @@ export class OnnxPainModel implements PainModel {
   }
 
   private vector(input: PainModelInput): number[] {
+    /**
+     * `nfcs_p3_sum` and `nfcs7_sum` are counts of seconds, so their scale
+     * depends on how long the window was and how much of it was usable. A model
+     * trained on exports from a unit that records thirty-second windows sees a
+     * different feature distribution from one that records ten, for the same
+     * infant. The fraction variants are window-independent and are the ones a
+     * `featureOrder` should normally name; the raw sums are kept so an already
+     * trained model is not silently re-scaled under it.
+     */
     const lookup: Record<string, number> = {
       nfcs_p3_sum: input.facial?.nfcsP3Sum ?? 0,
       nfcs7_sum: input.facial?.nfcs7Sum ?? 0,
+      nfcs_p3_fraction:
+        input.facial && input.facial.nfcsP3AchievableMax > 0
+          ? input.facial.nfcsP3Sum / input.facial.nfcsP3AchievableMax
+          : 0,
+      nfcs7_fraction:
+        input.facial && input.facial.nfcs7AchievableMax > 0
+          ? input.facial.nfcs7Sum / input.facial.nfcs7AchievableMax
+          : 0,
+      seconds_usable: input.facial?.secondsUsable ?? 0,
       brow_bulge: input.facial?.proportionPresent.brow_bulge ?? 0,
       eye_squeeze: input.facial?.proportionPresent.eye_squeeze ?? 0,
       nasolabial_furrow: input.facial?.proportionPresent.nasolabial_furrow ?? 0,

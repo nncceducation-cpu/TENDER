@@ -36,7 +36,7 @@ key is never committed and never reaches the deployed site.
 Verify everything:
 
 ```bash
-npm run verify           # typecheck, lint, 185 tests, production build
+npm run verify           # typecheck, lint, 257 tests, production build
 ```
 
 The camera requires a secure context. `npm run dev` serves over `localhost`, which
@@ -216,6 +216,7 @@ signal from a signal acquisition system. Treat it as investigational.
 
 ## Documentation
 
+- [`docs/AUDIT-ai-layer.md`](docs/AUDIT-ai-layer.md) — nine findings in the on-device facial, clip and cry layer, led by a window the camera never saw reading the same as a calm infant
 - [`docs/AUDIT-v2.5.md`](docs/AUDIT-v2.5.md) — five findings in 2.4.0, led by escalation discarding the withdrawal score when no pain score was recorded
 - [`docs/AUDIT-v1.md`](docs/AUDIT-v1.md) — fifteen findings from PainWise NICU, ranked by how directly they could reach a patient
 - [`docs/AUDIT-deeprelief.md`](docs/AUDIT-deeprelief.md) — review of DeepRelief AI, what was carried into TENDER and what was not
