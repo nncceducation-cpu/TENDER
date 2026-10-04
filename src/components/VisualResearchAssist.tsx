@@ -5,7 +5,7 @@ import { downloadText } from '../state/rawExport';
 import { Button, Callout, Card, Field, inputClass } from './ui';
 
 export const VisualResearchAssist = () => {
-  const [endpoint, setEndpoint] = useState('');
+  const [endpoint, setEndpoint] = useState('https://tender-visual-review.onrender.com');
   const [token, setToken] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [image, setImage] = useState('');
