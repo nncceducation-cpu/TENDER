@@ -61,8 +61,20 @@ export interface ConversionResult {
     reductionPercent: number;
   };
   oral: {
+    /** Straight equianalgesic conversion, no reduction. */
     morphine: OralSchedule;
     hydromorphone: OralSchedule;
+    /**
+     * The same schedules with the incomplete cross-tolerance reduction applied
+     * to the portion being rotated off IV. The IV arm offered both figures and
+     * the oral arm did not, so a rotation to oral silently received no
+     * reduction while the equivalent IV rotation offered one.
+     */
+    reduced: {
+      morphine: OralSchedule;
+      hydromorphone: OralSchedule;
+    };
+    reductionPercent: number;
   };
   breakthrough: {
     fractionOfDailyDose: number;
@@ -202,14 +214,32 @@ export const convertOpioids = (
     ? toMcg(input.oralHydromorphoneDaily.amount, input.oralHydromorphoneDaily.unit)
     : 0;
 
-  const oralMorphineEquivMcg =
-    totalIvme * C.ivMorphineToOralMorphine +
-    existingOralMorphineMcg +
-    existingOralHydromorphoneMcg * C.oralHydromorphoneToOralMorphine;
+  /* Split the total so the reduction can be applied to the rotated portion
+     only. An infant is already tolerant to a dose they are currently taking, so
+     reducing that part would under-dose them; the incomplete cross-tolerance
+     argument applies to what is being swapped. */
+  const rotatedOralMorphineMcg = totalIvme * C.ivMorphineToOralMorphine;
+  const carriedOralMorphineMcg =
+    existingOralMorphineMcg + existingOralHydromorphoneMcg * C.oralHydromorphoneToOralMorphine;
+
+  const oralMorphineEquivMcg = rotatedOralMorphineMcg + carriedOralMorphineMcg;
+  const reducedOralMorphineEquivMcg =
+    rotatedOralMorphineMcg * (1 - reduction) + carriedOralMorphineMcg;
+
+  if (rotatedOralMorphineMcg > 0) {
+    assumptions.push(
+      `The reduced oral schedule applies the ${(reduction * 100).toFixed(0)}% incomplete cross-tolerance reduction to the dose being rotated off IV only, not to any oral dose already prescribed.`,
+    );
+  }
 
   const oral = {
     morphine: makeSchedule(oralMorphineEquivMcg),
     hydromorphone: makeSchedule(oralMorphineEquivMcg / C.oralHydromorphoneToOralMorphine),
+    reduced: {
+      morphine: makeSchedule(reducedOralMorphineEquivMcg),
+      hydromorphone: makeSchedule(reducedOralMorphineEquivMcg / C.oralHydromorphoneToOralMorphine),
+    },
+    reductionPercent: reduction * 100,
   };
 
   // Breakthrough dosing, checked against the protocol's own bolus rule.
@@ -218,14 +248,21 @@ export const convertOpioids = (
   const protocolBolusMcg = POSTOP_DOSING.fentanyl.bolusMcgPerKg * w;
   const ratio = protocolBolusMcg > 0 ? derivedFentanylBolusMcg / protocolBolusMcg : 0;
 
+  /* Two rules for the same decision are in disagreement whichever way the ratio
+     falls. Only the high side used to be flagged, so a derived dose well below
+     the protocol bolus passed without comment — and under-dosing breakthrough
+     analgesia is not the safe direction either. */
+  const AGREEMENT_RATIO = 1.5;
+  const outsideBand = ratio > AGREEMENT_RATIO || ratio < 1 / AGREEMENT_RATIO;
+
   const conflictsWithProtocolBolus =
-    totalIvme > 0 && ratio > 1.5
+    totalIvme > 0 && protocolBolusMcg > 0 && outsideBand
       ? { protocolBolusMcg, derivedBolusMcg: derivedFentanylBolusMcg, ratio }
       : null;
 
   if (conflictsWithProtocolBolus) {
     warnings.push(
-      `The breakthrough dose derived here (${derivedFentanylBolusMcg.toFixed(1)} mcg fentanyl) is ${ratio.toFixed(1)} times the protocol's post-operative bolus of ${POSTOP_DOSING.fentanyl.bolusMcgPerKg} mcg/kg (${protocolBolusMcg.toFixed(1)} mcg). Decide which rule applies before prescribing.`,
+      `The breakthrough dose derived here (${derivedFentanylBolusMcg.toFixed(1)} mcg fentanyl) is ${ratio.toFixed(2)} times the protocol's post-operative bolus of ${POSTOP_DOSING.fentanyl.bolusMcgPerKg} mcg/kg (${protocolBolusMcg.toFixed(1)} mcg), ${ratio > 1 ? 'well above' : 'well below'} it. Decide which rule applies before prescribing.`,
     );
   }
 

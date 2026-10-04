@@ -30,10 +30,15 @@ export interface ProtocolVersion {
  */
 export const PROTOCOL_VERSION: ProtocolVersion = {
   id: 'ACH-NICU-POSTOP-OPIOID',
-  version: '2.4.0-draft',
+  version: '2.5.0-draft',
   effectiveDate: '2025-02-24',
   owner: 'Section of Newborn Critical Care, Alberta Children\'s Hospital',
   changelog: [
+    {
+      version: '2.5.0-draft',
+      date: '2026-10-04',
+      note: 'Escalation now evaluates the pain and withdrawal arms independently. Previously a missing N-PASS discarded the WAT-1 entirely, so a withdrawal score of 11 of 12 at nine days of exposure reported low urgency and never mentioned withdrawal, while the same score beside a reassuring N-PASS of 0 reported high urgency and a rescue dose. A missing score is now a stated blind spot and the reassuring headline is unreachable while an applicable score is outstanding. Hepatic dysfunction is collected and enforced as the absolute exclusion the protocol already declared but which no field existed to express. Acetaminophen dosing states that it is unmodified under hepatic dysfunction instead of leaving the gap silent, and the Orders screen now renders dosing warnings at all. The oral conversion arm offers the cross-tolerance reduction the IV arm already offered, applied to the rotated dose only. Breakthrough disagreement with the protocol bolus is flagged in both directions. No clinical value changed.',
+    },
     { version: '1.0.0', date: '2025-02-01', note: 'Original protocol as encoded in PainWise NICU, PDSA cycle 2.' },
     {
       version: '2.4.0-draft',
@@ -382,7 +387,7 @@ export const REVIEW_FLAGS: ReviewFlag[] = [
     severity: 'high',
     where: 'Eligibility and acetaminophen dosing',
     finding:
-      'Hepatic dysfunction is collected and used only to exclude the infant from the pathway. It does not modify or warn on acetaminophen dosing, which is the drug it most directly affects.',
+      'This flag previously overstated what the software did. Hepatic dysfunction was declared an absolute exclusion here but was not collected anywhere: PatientContext had no field for it, checkEligibility never tested it, and so every infant screened eligible on that criterion and the exclusion could never fire. It is now collected on the context screen and enforced as the declared exclusion. It still does not modify acetaminophen dosing, which is the drug it most directly affects; the dosing panel now states that the figures are unmodified rather than leaving the gap silent.',
     question:
       'Should acetaminophen be contraindicated, dose-reduced, or duration-limited when hepatic dysfunction is recorded?',
   },
@@ -412,6 +417,15 @@ export const REVIEW_FLAGS: ReviewFlag[] = [
       'Three photographs of calm, content infants each scored COMFORT facial tension 3 of 5, because an open mouth was counted as tension at full weight while the eyes were wide open. The module now requires eye squeeze before the mouth counts and caps the level at 2 when the eyes are clearly open, which follows NFCS, where eye squeeze is the discriminating action. That fixed three out of three false positives. It has not been tested against a single photograph of an infant in genuine pain, so the false negative rate is unknown, and the rule is capable of under-calling an infant who is in pain with the eyes open.',
     question:
       'Supply photographs of infants during a known noxious event so the false negative side can be measured. Until then, should the single-image route be available for clinical use at all, or restricted to the research protocol?',
+  },
+  {
+    id: 'consecutive-elevated-mixed-instruments',
+    severity: 'medium',
+    where: 'countConsecutiveElevated',
+    finding:
+      'Each score is tested against the threshold for its own instrument, so a run of consecutive elevated scores may mix instruments: an elevated N-PASS followed by an elevated WAT-1 counts as two. The count is the same as for two readings of one instrument, but the two instruments measure different things, so a mixed pair reaches the pause step without either pain or withdrawal having been elevated twice in a row. Pausing the wean is the conservative direction, so the behaviour was left as found rather than quietly narrowed.',
+    question:
+      'Does the pathway\'s "elevated scores q 30-60 min x 2" note count two readings of the same instrument, or any two consecutive elevated scores?',
   },
   {
     id: 'unimplemented-instruments',

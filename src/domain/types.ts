@@ -39,6 +39,17 @@ export interface PatientContext {
   weightKg: number | null;
   ventilation: VentilationStatus;
   modifiers: ConsciousnessModifier[];
+  /**
+   * Recorded hepatic dysfunction.
+   *
+   * Kept separate from `modifiers`, which are consciousness states that blunt
+   * behavioural pain expression; hepatic dysfunction is neither of those. It is
+   * here because ELIGIBILITY.exclusions declares it an absolute exclusion from
+   * the standard pathway and there was previously no way to express it, so the
+   * exclusion could never fire. Like `modifiers`, absent means not recorded
+   * rather than ruled out.
+   */
+  hepaticDysfunction: boolean;
   /** Null when the infant has not had surgery. */
   postOpDay: number | null;
   /** Continuous opioid/sedative infusions currently running. */
