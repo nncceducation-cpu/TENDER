@@ -42,6 +42,7 @@ export const EMPTY_CONTEXT: PatientContext = {
 };
 
 interface AppState {
+  visualConnection: { endpoint: string; token: string };
   visualResearchRecords: VisualResearchRecord[];
   screen: Screen;
   clinician: string;
@@ -111,6 +112,7 @@ interface AppState {
  * a document to paste or attach, and the session itself is disposable.
  */
 export const useStore = create<AppState>((set, get) => ({
+  visualConnection: { endpoint: 'https://tender-visual-review.onrender.com', token: '' },
   visualResearchRecords: [],
   screen: 'dashboard',
   clinician: '',
@@ -212,6 +214,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   reset: () =>
     set({
+      visualConnection: { endpoint: 'https://tender-visual-review.onrender.com', token: '' },
       visualResearchRecords: [],
       ctx: { ...EMPTY_CONTEXT },
       surgeryType: '',
