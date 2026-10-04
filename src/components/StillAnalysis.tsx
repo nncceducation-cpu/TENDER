@@ -120,7 +120,6 @@ export const StillAnalysis = () => {
   const onProposeTension = useStore((s) => s.proposeFacialTension);
 
   const [description, setDescription] = useState<StillDescription[] | null>(null);
-  const urlByName = new Map(scoreImages.map((i) => [i.name, i.dataUrl]));
   const usingExisting = mode === 'reuse' && existing !== null;
 
   const run = async () => {
@@ -539,7 +538,7 @@ export const StillAnalysis = () => {
                 <StillReport
                   key={d.frame.name + d.frame.index}
                   d={d}
-                  imageUrl={urlByName.get(d.frame.name)}
+                  imageUrl={scoreImages[d.frame.index]?.dataUrl}
                   onPropose={onProposeTension}
                 />
               ))}

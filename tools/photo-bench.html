@@ -1,0 +1,67 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>TENDER local photo robustness bench</title>
+<style>body{font:16px system-ui;max-width:1000px;margin:30px auto}button,input{padding:12px}textarea{width:100%;height:65vh}progress{width:100%}</style>
+<h1>TENDER local photo robustness bench</h1>
+<p>Real pinned model and production still-analysis code. No clinical labels or accuracy claims. Images remain on device. Development tool; not included in the production build.</p>
+<label>Test photos <input id="files" type="file" accept="image/*" multiple></label>
+<button id="run">Run photo benchmark</button>
+<button id="batch">Run mixed-image batch</button>
+<p id="status" role="status">Select test inputs.</p>
+<progress id="progress" value="0" max="1"></progress>
+<label>Results <textarea id="results" readonly></textarea></label>
+<script type="module">
+import { FaceLandmarkerService } from '/src/ai/faceLandmarker.ts';
+import { analyseStills } from '/src/ai/stillAnalysis.ts';
+const input = document.querySelector('#files');
+const button = document.querySelector('#run');
+const status = document.querySelector('#status');
+const results = document.querySelector('#results');
+const progress = document.querySelector('#progress');
+const service = new FaceLandmarkerService();
+input.addEventListener('change', () => status.textContent = `${input.files.length} files selected.`);
+const dataUrl = file => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(reader.result);
+  reader.onerror = () => reject(new Error('File could not be read.'));
+  reader.readAsDataURL(file);
+});
+button.addEventListener('click', async () => {
+  button.disabled = true;
+  const rows = [];
+  const files = Array.from(input.files);
+  const started = performance.now();
+  try {
+    await service.loadStill();
+    for (const file of files) {
+      const at = performance.now();
+      try {
+        const [f] = await analyseStills(service, [{ name: file.name, dataUrl: await dataUrl(file) }]);
+        rows.push({ name: f.name, faceFound: f.faceFound, quality: f.quality,
+          level: f.assessment?.facialTension ?? null, stable: f.levelStable,
+          alternateLevel: f.alternateLevel, faceBoxPx: f.faceBoxPx,
+          geometry: f.assessment ? Object.fromEntries(Object.entries(f.assessment.measures).filter(([key]) => key !== 'points')) : null,
+          problems: f.problems, milliseconds: Math.round(performance.now() - at) });
+      } catch (error) {
+        rows.push({ name: file.name, error: String(error) });
+      }
+      progress.value = rows.length / files.length;
+      status.textContent = `${rows.length}/${files.length} completed.`;
+      results.value = JSON.stringify(rows, null, 2);
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    status.textContent = `Complete: ${rows.length} cases in ${Math.round(performance.now() - started)} ms.`;
+  } catch (error) {
+    status.textContent = `Benchmark failed: ${String(error)}`;
+  } finally { button.disabled = false; }
+});
+document.querySelector('#batch').addEventListener('click', async () => {
+  try {
+    await service.loadStill();
+    const images = await Promise.all(Array.from(input.files).map(async file => ({name:file.name,dataUrl:await dataUrl(file)})));
+    const frames = await analyseStills(service, images);
+    results.value = JSON.stringify(frames.map(f=>({name:f.name,index:f.index,faceFound:f.faceFound,level:f.assessment?.facialTension??null,problems:f.problems})),null,2);
+    status.textContent = `Complete mixed batch: ${frames.length} results.`;
+  } catch(error) {status.textContent=String(error);}
+});
+</script>

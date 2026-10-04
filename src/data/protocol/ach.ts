@@ -30,10 +30,11 @@ export interface ProtocolVersion {
  */
 export const PROTOCOL_VERSION: ProtocolVersion = {
   id: 'ACH-NICU-POSTOP-OPIOID',
-  version: '2.7.0',
+  version: '2.8.0',
   effectiveDate: '2025-02-24',
   owner: 'Section of Newborn Critical Care, Alberta Children\'s Hospital',
   changelog: [
+    { version: '2.8.0', date: '2026-10-03', note: 'Expanded public-media robustness release. Detects and rejects multiple faces, preserves other images around corrupt inputs, withholds facial levels when resampling or reflection cannot reproduce them, keeps detector timestamps increasing across repeated clips, and permits cancelling stalled video seeks. Duplicate filenames retain their own image overlays. Public media sources and reproducible bench tools are documented separately from clinical validation. No clinical thresholds or medication rules changed.' },
     { version: '2.7.0', date: '2026-10-03', note: 'Research software release after exhaustive legal-score enumeration, synthetic stress matrices and real-model public-photo robustness checks. Rejects malformed/nonfinite measurements, confines facial summaries to the requested time window, preserves withdrawal escalation with invalid pain scores, rejects higher-order cry pitch aliases, reports every rejected image, and withholds a single-level proposal for unstable facial readings. No clinical thresholds or doses changed. Clinical validation remains outstanding.' },
     {
       version: '2.6.0-draft',
