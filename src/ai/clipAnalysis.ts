@@ -1,5 +1,7 @@
 import type { FaceLandmarkerService } from './faceLandmarker';
 import { assessFrameQuality } from './faceLandmarker';
+import { seekVideo } from './videoSeek';
+import { validDimensions } from './validity';
 import { calibrate, codeAction, rawActivations, selfReference, summariseWindow } from './nfcsFeatures';
 import type { InfantCalibration } from './nfcsFeatures';
 import type { NfcsAction, NfcsFrame, NfcsWindowSummary } from '../domain/types';
@@ -18,11 +20,11 @@ import type { NfcsAction, NfcsFrame, NfcsWindowSummary } from '../domain/types';
  * wait. In a clip the settled seconds are already there and can be selected after
  * the fact.
  *
- * And it is reproducible. The same file coded twice gives the same numbers, which
- * is what a validation study needs and what a live feed cannot offer.
+ * Offline seeking makes the input frames repeatable. Each pass starts with a
+ * fresh tracker; numerical and clinical repeatability still require testing.
  *
- * Frames are taken by seeking rather than by playing, so coding does not run in
- * real time and a thirty-second clip does not take thirty seconds to score.
+ * Frames are taken by seeking rather than by playing. Processing time depends
+ * on the sample budget, decoder and device; it can exceed the recording length.
  */
 
 export interface SampledFrame {
@@ -63,24 +65,7 @@ export const effectiveFps = (requestedFps: number, spanSeconds: number): number 
 
 /** Frames a pass will actually sample, for a progress or duration warning. */
 export const estimateFrames = (requestedFps: number, spanSeconds: number): number =>
-  Math.max(1, Math.round(spanSeconds * effectiveFps(requestedFps, spanSeconds)));
-
-const seekTo = (video: HTMLVideoElement, time: number): Promise<void> =>
-  new Promise((resolve, reject) => {
-    const onSeeked = () => {
-      video.removeEventListener('seeked', onSeeked);
-      video.removeEventListener('error', onError);
-      resolve();
-    };
-    const onError = () => {
-      video.removeEventListener('seeked', onSeeked);
-      video.removeEventListener('error', onError);
-      reject(new Error('The video could not be decoded at that position.'));
-    };
-    video.addEventListener('seeked', onSeeked);
-    video.addEventListener('error', onError);
-    video.currentTime = time;
-  });
+  Math.max(1, Math.ceil(spanSeconds * effectiveFps(requestedFps, spanSeconds) - 1e-6));
 
 /**
  * Walk a time range of a video and extract per-frame activations.
@@ -103,6 +88,10 @@ export const sampleRange = async (
     throw new Error('Invalid sampling range, video duration or frame rate.');
   }
   const span = Math.max(0, endSeconds - startSeconds);
+  if (!validDimensions(video.videoWidth, video.videoHeight)) {
+    throw new Error('This browser could not decode video frames from this file. Try an MP4 or WebM recording.');
+  }
+  await service.beginVideoPass();
   const fps = effectiveFps(options.fps ?? 15, span);
   const step = 1 / fps;
   const frames: SampledFrame[] = [];
@@ -110,7 +99,10 @@ export const sampleRange = async (
 
   for (let t = startSeconds; t < endSeconds - 1e-6; t += step) {
     if (options.signal?.aborted) throw new Error('Analysis cancelled.');
-    await seekTo(video, Math.min(t, video.duration - 1e-3));
+    await seekVideo(video, Math.min(t, video.duration - 1e-3), options.signal);
+    if (!validDimensions(video.videoWidth, video.videoHeight)) {
+      throw new Error('The recording no longer has decodable video frames. Try an MP4 or WebM recording.');
+    }
 
     const result = service.detect(video, timestampBase + n * (1000 / fps) + 1);
     const q = assessFrameQuality(result, video.videoWidth, video.videoHeight);
@@ -186,17 +178,11 @@ export const analyseClip = async (
   const scoringSeconds = sEnd - sStart;
 
   const requested = options.fps ?? 15;
-  const expectedBaselineFrames = Math.max(
-    1,
-    Math.round(baselineSeconds * effectiveFps(requested, baselineSeconds)),
-  );
+  const expectedBaselineFrames = estimateFrames(requested, baselineSeconds);
 
   // Pass one: the settled range, when there is one.
   let calibration: InfantCalibration | null = null;
-  const expectedScoringFrames = Math.max(
-    1,
-    Math.round(scoringSeconds * effectiveFps(requested, scoringSeconds)),
-  );
+  const expectedScoringFrames = estimateFrames(requested, scoringSeconds);
 
   if (!selfReferenced) {
     const baselineFrames = await sampleRange(service, video, bStart, bEnd, 0, {

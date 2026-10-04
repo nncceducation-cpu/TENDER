@@ -78,7 +78,7 @@ export const measureGeometry = (
   imageHeight: number,
 ): GeometryMeasures | null => {
   const lm = result.faceLandmarks?.[0];
-  if (!lm || !validLandmarks(lm) || !validDimensions(imageWidth, imageHeight)) return null;
+  if (result.faceLandmarks.length !== 1 || !lm || !validLandmarks(lm) || !validDimensions(imageWidth, imageHeight)) return null;
 
   // Landmarks are normalised to the image box, so x and y must be scaled back to
   // pixels before any distance is compared with any other distance.

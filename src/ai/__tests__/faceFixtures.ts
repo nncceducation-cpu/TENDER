@@ -255,6 +255,7 @@ export const installDom = (): void => {
         },
         fillRect: (...a: number[]) => ops.push(['fillRect', ...a]),
         drawImage: (...a: unknown[]) => ops.push(['drawImage', ...a.slice(1)]),
+        setTransform: (...a: number[]) => ops.push(['transform', ...a]),
       };
     }
   }
@@ -331,6 +332,8 @@ export class FakeLandmarker {
   async loadStill() {
     return this as unknown as never;
   }
+
+  async beginVideoPass(): Promise<void> {}
 
   close(): void {}
 }

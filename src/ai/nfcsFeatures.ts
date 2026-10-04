@@ -66,6 +66,10 @@ const get = (m: Map<string, number>, k: string) => m.get(k) ?? 0;
 export const UNAVAILABLE_ACTIONS: NfcsAction[] = ['taut_tongue'];
 
 export const rawActivations = (r: FaceLandmarkerResult): Record<NfcsAction, number> => {
+  if (r.faceLandmarks.length !== 1) {
+    return Object.fromEntries(['brow_bulge', 'eye_squeeze', 'nasolabial_furrow', 'open_lips',
+      'vertical_mouth_stretch', 'horizontal_mouth_stretch', 'taut_tongue'].map(action => [action, Number.NaN])) as Record<NfcsAction, number>;
+  }
   const s = scores(r);
 
   const browBulge = mean(get(s, BS.browDownLeft), get(s, BS.browDownRight));
@@ -393,7 +397,7 @@ export const codeFrame = (
    * any frame this function produced and only the quality term was load-bearing.
    * It now reports what the landmarker actually returned.
    */
-  const faceDetected = (r.faceLandmarks?.[0]?.length ?? 0) > 0;
+  const faceDetected = r.faceLandmarks.length === 1 && (r.faceLandmarks[0]?.length ?? 0) > 0;
 
   return { t, actions, activations, faceDetected, quality };
 };

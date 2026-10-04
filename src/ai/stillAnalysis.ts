@@ -3,6 +3,7 @@ import {
   assessFrameQuality,
   canonicaliseFace,
   mapPointsToOriginal,
+  mirrorFaceCrop,
   CANONICAL_FACE_PX,
   STABILITY_FACE_PX,
 } from './faceLandmarker';
@@ -75,7 +76,16 @@ export const analyseStills = async (
   const out: StillFrame[] = [];
 
   for (let i = 0; i < images.length; i++) {
-    const img = await decode(images[i].dataUrl);
+    let img: HTMLImageElement;
+    try {
+      img = await decode(images[i].dataUrl);
+    } catch {
+      out.push({ index: i, name: images[i].name, activations: {} as Record<NfcsAction, number>,
+        quality: 0, problems: ['That image could not be decoded. Other images were still analysed.'],
+        faceFound: false, assessment: null, faceBoxPx: null, levelStable: false, alternateLevel: null });
+      onProgress?.((i + 1) / images.length);
+      continue;
+    }
 
     // First pass locates the face in the image as supplied. Quality is judged
     // here, on the real thing, because after cropping every face fills its frame
@@ -158,7 +168,7 @@ export const analyseStills = async (
       mapPointsToOriginal(geometry.points as unknown as Record<string, Record<string, { x: number; y: number }>>, crop);
     }
 
-    const assessment = geometry ? readSingleImage(geometry) : null;
+    let assessment = geometry ? readSingleImage(geometry) : null;
 
     // Third pass at a different scale, to find out whether the level is a fact
     // about the face or an artefact of the resampling.
@@ -167,13 +177,41 @@ export const analyseStills = async (
     if (assessment && crop) {
       const alt = canonicaliseFace(img, located, STABILITY_FACE_PX);
       const altResult = alt ? service.detectStill(alt.canvas) : null;
-      if (altResult && altResult.faceLandmarks.length > 0) {
+      if (altResult && assessFrameQuality(altResult, STABILITY_FACE_PX, STABILITY_FACE_PX).usable) {
         const altGeom = measureGeometry(altResult, STABILITY_FACE_PX, STABILITY_FACE_PX);
         const altRead = altGeom ? readSingleImage(altGeom) : null;
         if (altRead && altRead.facialTension !== assessment.facialTension) {
           levelStable = false;
           alternateLevel = altRead.facialTension;
         }
+        if (!altRead) {
+          levelStable = false;
+          assessment = null;
+          problems.push('The second-scale measurement failed. No facial tension level is offered.');
+        }
+      } else {
+        levelStable = false;
+        assessment = null;
+        problems.push('The second-scale face could not be measured reliably. No facial tension level is offered.');
+      }
+    }
+
+    // A reflection preserves expression. If the detector cannot reproduce the
+    // level after reflection, the geometry cannot support a single-level proposal.
+    if (assessment && crop) {
+      const mirror = mirrorFaceCrop(crop.canvas);
+      const mirroredResult = mirror ? service.detectStill(mirror) : null;
+      const mirroredGeometry = mirroredResult &&
+        assessFrameQuality(mirroredResult, CANONICAL_FACE_PX, CANONICAL_FACE_PX).usable
+        ? measureGeometry(mirroredResult, CANONICAL_FACE_PX, CANONICAL_FACE_PX) : null;
+      const mirroredReading = mirroredGeometry ? readSingleImage(mirroredGeometry) : null;
+      if (!mirroredReading || mirroredReading.facialTension !== assessment.facialTension) {
+        problems.push(mirroredReading
+          ? `Reflection changed the facial tension reading from ${assessment.facialTension} to ${mirroredReading.facialTension}. No level is offered because the measurement is not reproducible.`
+          : 'The reflected face could not be measured reliably. No facial tension level is offered.');
+        levelStable = false;
+        alternateLevel = mirroredReading?.facialTension ?? null;
+        assessment = null;
       }
     }
 
@@ -182,7 +220,7 @@ export const analyseStills = async (
         `Frame quality ${quality.toFixed(2)} is below the 0.45 needed to measure this face. No level is offered, which is the correct output rather than a missing one.`,
       );
     }
-    if (!levelStable) {
+    if (!levelStable && assessment && alternateLevel !== null) {
       problems.push(
         `Re-measured at a different scale this face read as level ${alternateLevel} rather than ${assessment?.facialTension}. The reading sits on a boundary.`,
       );

@@ -44,6 +44,7 @@ export const DEFAULT_LANDMARKER_CONFIG: LandmarkerConfig = {
 export class FaceLandmarkerService {
   private landmarker: FaceLandmarker | null = null;
   private loading: Promise<FaceLandmarker> | null = null;
+  private lastVideoTimestamp = -1;
 
   /**
    * Still images need a landmarker in IMAGE mode. Switching an existing instance
@@ -66,7 +67,8 @@ export class FaceLandmarkerService {
       FaceLandmarker.createFromOptions(fileset, {
         baseOptions: { modelAssetPath: this.config.modelAssetPath, delegate },
         runningMode,
-        numFaces: 1,
+        // Detect ambiguity instead of silently selecting one person.
+        numFaces: 2,
         outputFaceBlendshapes: true,
         outputFacialTransformationMatrixes: true,
         minFaceDetectionConfidence: 0.4,
@@ -96,9 +98,23 @@ export class FaceLandmarkerService {
     return this.stillLoading;
   }
 
+  /** Offline passes must not inherit another clip's tracking or decoder errors. */
+  async beginVideoPass(): Promise<void> {
+    this.landmarker?.close();
+    this.landmarker = null;
+    this.loading = null;
+    this.lastVideoTimestamp = -1;
+    await this.load();
+  }
+
   detect(video: HTMLVideoElement, timestampMs: number): FaceLandmarkerResult | null {
     if (!this.landmarker) return null;
-    return this.landmarker.detectForVideo(video, timestampMs);
+    if (!validDimensions(video.videoWidth, video.videoHeight)) return null;
+    if (!Number.isFinite(timestampMs) || timestampMs < 0) throw new Error('Invalid video timestamp.');
+    // The same service survives repeated clip passes and a switch to live capture.
+    const monotonic = Math.max(timestampMs, this.lastVideoTimestamp + 1);
+    this.lastVideoTimestamp = monotonic;
+    return this.landmarker.detectForVideo(video, monotonic);
   }
 
   detectStill(image: HTMLImageElement | HTMLCanvasElement): FaceLandmarkerResult | null {
@@ -113,6 +129,7 @@ export class FaceLandmarkerService {
     this.stillLandmarker = null;
     this.loading = null;
     this.stillLoading = null;
+    this.lastVideoTimestamp = -1;
   }
 }
 
@@ -124,6 +141,16 @@ export class FaceLandmarkerService {
 export const CANONICAL_FACE_PX = 512;
 /** A second, deliberately different scale, used only to test whether a reading holds. */
 export const STABILITY_FACE_PX = 384;
+
+export const mirrorFaceCrop = (source: HTMLCanvasElement): HTMLCanvasElement | null => {
+  const canvas = document.createElement('canvas');
+  canvas.width = source.width; canvas.height = source.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.setTransform(-1, 0, 0, 1, source.width, 0);
+  ctx.drawImage(source, 0, 0);
+  return canvas;
+};
 
 export interface FaceCrop {
   canvas: HTMLCanvasElement;
@@ -165,7 +192,7 @@ export const canonicaliseFace = (
   targetPx: number = CANONICAL_FACE_PX,
 ): FaceCrop | null => {
   const lm = result.faceLandmarks[0];
-  if (!lm || !validLandmarks(lm)) return null;
+  if (result.faceLandmarks.length !== 1 || !lm || !validLandmarks(lm)) return null;
 
   const w = source instanceof HTMLImageElement ? source.naturalWidth : source.width;
   const h = source instanceof HTMLImageElement ? source.naturalHeight : source.height;
@@ -256,7 +283,7 @@ export interface QualityAssessment {
   notAssessed: string[];
 }
 
-const NOT_ASSESSED = ['Exposure and contrast are not measured by this gate.'];
+const NOT_ASSESSED = ['Exposure and contrast are not measured by this gate.', 'Blur and facial occlusion are not measured by this gate. Confirm that the entire face is visible and sufficiently sharp.'];
 
 export const assessFrameQuality = (
   result: FaceLandmarkerResult | null,
@@ -266,6 +293,9 @@ export const assessFrameQuality = (
   const problems: string[] = [];
   if (!result || result.faceLandmarks.length === 0) {
     return { quality: 0, usable: false, problems: ['No face detected in frame.'], notAssessed: NOT_ASSESSED };
+  }
+  if (result.faceLandmarks.length !== 1) {
+    return { quality: 0, usable: false, problems: ['Multiple faces detected. Show only the infant being assessed.'], notAssessed: NOT_ASSESSED };
   }
 
   const lm = result.faceLandmarks[0];

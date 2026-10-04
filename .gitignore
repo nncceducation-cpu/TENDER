@@ -27,6 +27,9 @@ dist-ssr
 public/models/
 dist-standalone/
 
+# Local public-media robustness library; metadata and results are committed.
+TENDER-media-test-library-*.zip
+
 # Local secrets
 .env.local
 .env*.local

@@ -1,0 +1,47 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>TENDER local clip robustness bench</title>
+<style>body{font:16px system-ui;max-width:1000px;margin:30px auto}button,input{padding:12px}textarea{width:100%;height:50vh}video{width:360px;max-height:300px}</style>
+<h1>TENDER local clip robustness bench</h1>
+<p>Production clip sampler and pinned model. Public test media only. No clinical labels.</p>
+<label>Test clips <input id="files" type="file" accept="video/*,.ogv" multiple></label>
+<button id="run">Run clip benchmark</button>
+<p id="status" role="status">Select test inputs.</p>
+<video id="video" muted playsinline controls></video>
+<label>Results <textarea id="results" readonly></textarea></label>
+<script type="module">
+import { FaceLandmarkerService } from '/src/ai/faceLandmarker.ts';
+import { sampleRange } from '/src/ai/clipAnalysis.ts';
+const input=document.querySelector('#files'), button=document.querySelector('#run'), status=document.querySelector('#status'), video=document.querySelector('#video'), results=document.querySelector('#results');
+input.addEventListener('change',()=>status.textContent=`${input.files.length} clips selected.`);
+const load=url=>new Promise((resolve,reject)=>{
+  const timer=setTimeout(()=>finish(new Error('Video decoding timed out.')),15000);
+  const ready=()=>finish(), fail=()=>finish(new Error('Unsupported or corrupt video.'));
+  const finish=error=>{clearTimeout(timer);video.removeEventListener('loadeddata',ready);video.removeEventListener('error',fail);error?reject(error):resolve();};
+  video.addEventListener('loadeddata',ready);video.addEventListener('error',fail);video.src=url;video.load();
+});
+button.addEventListener('click',async()=>{
+  button.disabled=true; const rows=[];const service=new FaceLandmarkerService();
+  try{
+    await service.load();
+    for(const file of input.files){
+      const url=URL.createObjectURL(file);
+      try{
+        await load(url);
+        for(const fps of [4,15,4]){
+          const started=performance.now(), controller=new AbortController();
+          const timer=setTimeout(()=>controller.abort(),300000);
+          try{
+            const end = fps === 15 ? Math.min(10,video.duration) : video.duration;
+            const frames=await sampleRange(service,video,0,end,0,{fps,signal:controller.signal,onProgress:f=>status.textContent=`${file.name}: ${fps} fps, ${Math.round(f*100)}%`});
+            rows.push({name:file.name,fps,duration:video.duration,sampledSeconds:end,width:video.videoWidth,height:video.videoHeight,detectedFrames:frames.length,usableFrames:frames.filter(f=>f.quality>=.45).length,problems:[...new Set(frames.flatMap(f=>f.problems))],milliseconds:Math.round(performance.now()-started)});
+          }catch(error){rows.push({name:file.name,fps,error:String(error)});}finally{clearTimeout(timer);}
+          results.value=JSON.stringify(rows,null,2);
+        }
+      }catch(error){rows.push({name:file.name,error:String(error)});}finally{URL.revokeObjectURL(url);}
+      results.value=JSON.stringify(rows,null,2);
+    }
+    status.textContent=`Complete: ${rows.length} clip passes.`;
+  }catch(error){status.textContent=String(error);}finally{service.close();button.disabled=false;}
+});
+</script>
