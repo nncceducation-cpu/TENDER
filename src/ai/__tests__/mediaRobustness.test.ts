@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { FaceLandmarkerService, assessFrameQuality, canonicaliseFace } from '../faceLandmarker';
-import { analyseStills } from '../stillAnalysis';
+import { analyseStills, describeStills } from '../stillAnalysis';
 import { estimateFrames, sampleRange } from '../clipAnalysis';
 import { codeFrame, rawActivations } from '../nfcsFeatures';
 import { measureGeometry } from '../faceGeometry';
@@ -10,6 +10,17 @@ const service = (results: ReturnType<typeof makeResult>[]) => new FakeLandmarker
 const input = [{ name: 'test.jpg', dataUrl: 'data:test' }];
 
 describe('ambiguous and incomplete media measurements', () => {
+  it('withholds a closed-eye-only reading throughout the report pipeline', async () => {
+    setImageSize(1280, 720);
+    const resting = makeResult({ face: makeFace({ aperture: .013, mouthOpening: .005, browToEye: .271 }) });
+    const frames = await analyseStills(service([resting]), input);
+    expect(frames[0].faceFound).toBe(true);
+    expect(frames[0].quality).toBeGreaterThanOrEqual(.45);
+    expect(frames[0].assessment).toBeNull();
+    expect(frames[0].levelStable).toBe(false);
+    expect(describeStills(frames)[0].assessment).toBeNull();
+    expect(frames[0].problems.join(' ')).toMatch(/sleep or blinking/);
+  });
   it('does not select the first person in a multiple-face frame', async () => {
     setImageSize(1280, 720);
     const r = makeResult(); r.faceLandmarks.push(r.faceLandmarks[0]);

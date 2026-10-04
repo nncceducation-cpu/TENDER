@@ -168,11 +168,15 @@ export const analyseStills = async (
       mapPointsToOriginal(geometry.points as unknown as Record<string, Record<string, { x: number; y: number }>>, crop);
     }
 
-    let assessment = geometry ? readSingleImage(geometry) : null;
+    const read = geometry ? readSingleImage(geometry) : null;
+    let assessment = read?.scoreAvailable ? read : null;
+    if (read && !read.scoreAvailable) {
+      problems.push('Closed or narrowed eyelids alone cannot distinguish sleep or blinking from eye squeeze. No facial tension level is offered. Assess the infant directly; a settled baseline or sequence may help.');
+    }
 
     // Third pass at a different scale, to find out whether the level is a fact
     // about the face or an artefact of the resampling.
-    let levelStable = true;
+    let levelStable = assessment !== null;
     let alternateLevel: number | null = null;
     if (assessment && crop) {
       const alt = canonicaliseFace(img, located, STABILITY_FACE_PX);
@@ -184,7 +188,7 @@ export const analyseStills = async (
           levelStable = false;
           alternateLevel = altRead.facialTension;
         }
-        if (!altRead) {
+        if (!altRead?.scoreAvailable) {
           levelStable = false;
           assessment = null;
           problems.push('The second-scale measurement failed. No facial tension level is offered.');
@@ -205,12 +209,14 @@ export const analyseStills = async (
         assessFrameQuality(mirroredResult, CANONICAL_FACE_PX, CANONICAL_FACE_PX).usable
         ? measureGeometry(mirroredResult, CANONICAL_FACE_PX, CANONICAL_FACE_PX) : null;
       const mirroredReading = mirroredGeometry ? readSingleImage(mirroredGeometry) : null;
-      if (!mirroredReading || mirroredReading.facialTension !== assessment.facialTension) {
-        problems.push(mirroredReading
+      if (!mirroredReading?.scoreAvailable || mirroredReading.facialTension !== assessment.facialTension) {
+        problems.push(mirroredReading && !mirroredReading.scoreAvailable
+          ? 'The reflected measurement has eyelid-closure ambiguity. No facial tension level is offered.'
+          : mirroredReading
           ? `Reflection changed the facial tension reading from ${assessment.facialTension} to ${mirroredReading.facialTension}. No level is offered because the measurement is not reproducible.`
           : 'The reflected face could not be measured reliably. No facial tension level is offered.');
         levelStable = false;
-        alternateLevel = mirroredReading?.facialTension ?? null;
+        alternateLevel = mirroredReading?.scoreAvailable ? mirroredReading.facialTension : null;
         assessment = null;
       }
     }

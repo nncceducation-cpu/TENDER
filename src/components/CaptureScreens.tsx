@@ -19,6 +19,7 @@ import { VisionAssist } from './VisionAssist';
 
 const ProposalNote = () => {
   const proposed = useStore((s) => s.proposedFacialTension);
+  const source = useStore((s) => s.proposedFacialTensionSource);
   const setScreen = useStore((s) => s.setScreen);
   if (proposed === null) return null;
   return (
@@ -27,8 +28,8 @@ const ProposalNote = () => {
       <button className="underline font-medium" onClick={() => setScreen('assess')}>
         Score an instrument
       </button>{' '}
-      and it will be offered for the COMFORT facial tension item, marked as model-derived
-      until you accept or change it.
+      and it will be offered for the COMFORT facial tension item, marked as{' '}
+      {source === 'clinician' ? 'your confirmed observation' : 'model-derived'} until you accept or change it.
     </Callout>
   );
 };

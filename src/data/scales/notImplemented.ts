@@ -15,9 +15,19 @@ export interface UnimplementedScale {
   bestFor: string;
   population: string;
   whyNotHere: string;
+  sourceUrl?: string;
 }
 
 export const NOT_IMPLEMENTED: UnimplementedScale[] = [
+  {
+    name: 'BIIP',
+    fullName: 'Behavioral Indicators of Infant Pain',
+    shape: 'Sleep/wake state, five facial actions and two hand actions',
+    bestFor: 'Acute procedural assessment in preterm infants; adds finger splay and fisting when facial responses are limited',
+    population: 'Initial validation in 92 preterm infants during blood collection',
+    whyNotHere: 'Reviewed against Holsti and Grunau (2007). TENDER does not yet calculate BIIP: the complete scoring sheet and interpretation must be verified before adding a calculator. A face-only photo cannot supply sleep/wake observation and both hand items. Closed eyelids are not automatically eye squeeze.',
+    sourceUrl: 'https://pubmed.ncbi.nlm.nih.gov/17382473/',
+  },
   {
     name: 'FANS',
     fullName: 'Faceless Acute Neonatal pain Scale',
