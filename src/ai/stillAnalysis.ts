@@ -134,7 +134,7 @@ export const analyseStills = async (
      * caller; this fixes every caller.
      */
     const faceBoxPx = crop?.faceBoxPx ?? null;
-    const problems = [...q.problems];
+    const problems = [...q.problems, ...q.notAssessed];
     let quality = q.quality;
 
     // Upsampling a small face box to 512 does not create detail it never had.
@@ -298,7 +298,6 @@ export interface StillDescription {
  */
 export const describeStills = (frames: StillFrame[]): StillDescription[] =>
   frames
-    .filter((f) => f.faceFound)
     .map((frame) => ({
       frame,
       assessment: frame.assessment,

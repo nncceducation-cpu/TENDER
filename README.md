@@ -8,7 +8,7 @@ On-device clinical decision support for neonatal pain assessment, post-operative
 analgesia and opioid weaning. Successor to PainWise NICU, rebuilt around the
 Alberta Children's Hospital NICU protocol.
 
-> **Pre-release.** Not validated at any site, not reviewed by a research ethics
+> **Research software release 2.7.0.** Not validated at any site, not reviewed by a research ethics
 > board or a regulator, and carrying open questions about opioid dosing. Nothing
 > it produces should be used to treat an infant. See Status and safety below.
 
@@ -20,6 +20,8 @@ performed by a model that runs entirely in the browser, proposes values, and nev
 commits them.
 
 ---
+
+Release verification and photo-test limitations: [Stress-test report](docs/STRESS-TEST-2.7.0.md).
 
 ## Quick start
 
@@ -36,7 +38,7 @@ key is never committed and never reaches the deployed site.
 Verify everything:
 
 ```bash
-npm run verify           # typecheck, lint, 257 tests, production build
+npm run verify           # typecheck, lint, 275 tests, production build
 ```
 
 The camera requires a secure context. `npm run dev` serves over `localhost`, which

@@ -1,3 +1,4 @@
+import { validDimensions, validLandmarks } from './validity';
 import {
   FilesetResolver,
   FaceLandmarker,
@@ -164,11 +165,11 @@ export const canonicaliseFace = (
   targetPx: number = CANONICAL_FACE_PX,
 ): FaceCrop | null => {
   const lm = result.faceLandmarks[0];
-  if (!lm || lm.length === 0) return null;
+  if (!lm || !validLandmarks(lm)) return null;
 
   const w = source instanceof HTMLImageElement ? source.naturalWidth : source.width;
   const h = source instanceof HTMLImageElement ? source.naturalHeight : source.height;
-  if (!w || !h) return null;
+  if (!validDimensions(w, h) || !Number.isFinite(targetPx) || targetPx <= 0) return null;
 
   const xs = lm.map((p) => p.x * w);
   const ys = lm.map((p) => p.y * h);
@@ -268,6 +269,9 @@ export const assessFrameQuality = (
   }
 
   const lm = result.faceLandmarks[0];
+  if (!validDimensions(frameWidth, frameHeight) || !validLandmarks(lm)) {
+    return { quality: 0, usable: false, problems: ['Invalid dimensions or incomplete/nonfinite landmarks.'], notAssessed: NOT_ASSESSED };
+  }
   const xs = lm.map((p) => p.x);
   const ys = lm.map((p) => p.y);
   const w = Math.max(...xs) - Math.min(...xs);
@@ -284,6 +288,9 @@ export const assessFrameQuality = (
   // Head pose from the facial transformation matrix; large yaw or pitch makes
   // the unilateral action units unreliable.
   const matrix = result.facialTransformationMatrixes?.[0]?.data;
+  if (matrix && (matrix.length < 16 || !Array.from(matrix).every(Number.isFinite))) {
+    return { quality: 0, usable: false, problems: ['Invalid head-pose matrix.'], notAssessed: NOT_ASSESSED };
+  }
   if (matrix) {
     const yaw = Math.abs(Math.atan2(-matrix[8], matrix[10]) * (180 / Math.PI));
     const pitch = Math.abs(Math.asin(Math.min(1, Math.max(-1, matrix[9]))) * (180 / Math.PI));

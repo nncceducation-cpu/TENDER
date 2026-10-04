@@ -270,7 +270,7 @@ export const FaceOverlay = ({
       ctx.fillStyle = 'rgba(255,255,255,0.72)';
       ctx.font = `${Math.round(11.5 * chrome)}px system-ui, sans-serif`;
       ctx.fillText(
-        'Uncalibrated. Not for patient care. TENDER pre-release.',
+        'Uncalibrated. Not for patient care. TENDER research release.',
         bx + 16 * chrome,
         by + 64 * chrome,
       );

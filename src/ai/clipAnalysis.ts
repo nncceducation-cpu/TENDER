@@ -97,13 +97,18 @@ export const sampleRange = async (
   timestampBase: number,
   options: SampleOptions = {},
 ): Promise<SampledFrame[]> => {
+  if (![startSeconds, endSeconds, timestampBase, video.duration].every(Number.isFinite) ||
+      startSeconds < 0 || endSeconds <= startSeconds || endSeconds > video.duration ||
+      timestampBase < 0 || (options.fps !== undefined && (!Number.isFinite(options.fps) || options.fps <= 0))) {
+    throw new Error('Invalid sampling range, video duration or frame rate.');
+  }
   const span = Math.max(0, endSeconds - startSeconds);
   const fps = effectiveFps(options.fps ?? 15, span);
   const step = 1 / fps;
   const frames: SampledFrame[] = [];
   let n = 0;
 
-  for (let t = startSeconds; t <= endSeconds + 1e-6; t += step) {
+  for (let t = startSeconds; t < endSeconds - 1e-6; t += step) {
     if (options.signal?.aborted) throw new Error('Analysis cancelled.');
     await seekTo(video, Math.min(t, video.duration - 1e-3));
 
@@ -162,6 +167,12 @@ export const analyseClip = async (
   },
   options: SampleOptions = {},
 ): Promise<ClipResult | ClipFailure> => {
+  const endpoints = [...ranges.scoring, ...(ranges.baseline ?? [])];
+  if (!Number.isFinite(video.duration) || video.duration <= 0 ||
+      endpoints.some(t => !Number.isFinite(t) || t < 0 || t > video.duration) ||
+      (options.fps !== undefined && (!Number.isFinite(options.fps) || options.fps <= 0))) {
+    return { error: 'Choose finite ranges inside the clip and a positive frame rate.' };
+  }
   const [sStart, sEnd] = ranges.scoring;
   if (sEnd <= sStart) return { error: 'The scoring range is empty.' };
 

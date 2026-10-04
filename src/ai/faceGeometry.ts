@@ -1,3 +1,4 @@
+import { validDimensions, validLandmarks } from './validity';
 import type { FaceLandmarkerResult } from '@mediapipe/tasks-vision';
 
 /**
@@ -77,7 +78,7 @@ export const measureGeometry = (
   imageHeight: number,
 ): GeometryMeasures | null => {
   const lm = result.faceLandmarks?.[0];
-  if (!lm || lm.length < 468) return null;
+  if (!lm || !validLandmarks(lm) || !validDimensions(imageWidth, imageHeight)) return null;
 
   // Landmarks are normalised to the image box, so x and y must be scaled back to
   // pixels before any distance is compared with any other distance.
@@ -295,6 +296,7 @@ export const readSingleImage = (m: GeometryMeasures): SingleImageAssessment => {
   if (eyesClearlyOpen && level > 2) level = 2;
 
   const caveats = [
+    'A photograph cannot distinguish sleep, blinking, crying and pain reliably. This reading does not establish pain or exclude it.',
     'Uncalibrated. No settled reference for this infant was supplied, so this reading uses geometry normalised to interocular distance rather than to this infant\'s own resting face.',
     'Not comparable between infants or between sessions. Use it as a structured reading of this photograph, not as a score to trend.',
     'Level 1, total relaxation, is never produced. A single frame cannot distinguish a relaxed face from a blink or a momentary lull.',

@@ -1,3 +1,4 @@
+import { usableFacialSummary } from './validity';
 import type { AiEvidence, CryFeatures, NfcsWindowSummary, PhysiologicFeatures, ScaleId } from '../domain/types';
 import { UNAVAILABLE_ACTIONS } from './nfcsFeatures';
 import { NFCS_P3 } from '../data/scales/nfcs';
@@ -41,6 +42,7 @@ export interface SuggestionSet {
  * usable seconds out of thirty gets a low number regardless of what it saw.
  */
 const windowConfidence = (f: NfcsWindowSummary): number => {
+  if (!usableFacialSummary(f)) return 0;
   const coverage = f.windowSeconds > 0 ? Math.min(1, f.secondsUsable / f.windowSeconds) : 0;
   return Math.max(0, Math.min(1, coverage * f.meanQuality));
 };
