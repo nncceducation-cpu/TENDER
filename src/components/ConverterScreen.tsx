@@ -298,6 +298,32 @@ export const ConverterScreen = () => {
                 </div>
               </div>
             </div>
+            {/* The IV rotation table shows both the straight and the reduced
+                figures. The oral arm showed only the straight one, so rotating
+                to oral silently received no cross-tolerance reduction. */}
+            <div className="mt-5 pt-4 border-t border-slate-200">
+              <p className="text-sm font-semibold text-slate-700 mb-1">
+                With the {result.oral.reductionPercent.toFixed(0)}% incomplete cross-tolerance
+                reduction
+              </p>
+              <p className="text-xs text-slate-600 mb-3">
+                Applied to the dose being rotated off IV only, not to any oral dose already
+                prescribed. Choose one schedule deliberately; this tool does not pick.
+              </p>
+              <div className="grid sm:grid-cols-2 gap-6">
+                <div className="grid grid-cols-3 gap-2">
+                  <Stat label="Morphine/day" value={result.oral.reduced.morphine.dailyMg.toFixed(3)} unit="mg" />
+                  <Stat label="q6h" value={(result.oral.reduced.morphine.q6hDoseMcg / 1000).toFixed(3)} unit="mg" />
+                  <Stat label="q4h" value={(result.oral.reduced.morphine.q4hDoseMcg / 1000).toFixed(3)} unit="mg" />
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <Stat label="Hydromorph/day" value={result.oral.reduced.hydromorphone.dailyMg.toFixed(3)} unit="mg" />
+                  <Stat label="q6h" value={(result.oral.reduced.hydromorphone.q6hDoseMcg / 1000).toFixed(3)} unit="mg" />
+                  <Stat label="q4h" value={(result.oral.reduced.hydromorphone.q4hDoseMcg / 1000).toFixed(3)} unit="mg" />
+                </div>
+              </div>
+            </div>
+
             <div className="mt-4">
               <Stat
                 label={`Methadone, initial dose ${result.methadone.frequency}`}

@@ -13,6 +13,7 @@ const ctx = (over: Partial<PatientContext> = {}): PatientContext => ({
   weightKg: 1.2,
   ventilation: 'spontaneous',
   modifiers: [],
+  hepaticDysfunction: false,
   postOpDay: null,
   infusions: [],
   ...over,

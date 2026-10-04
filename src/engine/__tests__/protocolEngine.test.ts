@@ -9,6 +9,7 @@ import {
   countConsecutiveElevated,
 } from '../protocolEngine';
 import type { PatientContext } from '../../domain/types';
+import { ELIGIBILITY, ESCALATION } from '../../data/protocol/ach';
 
 const ctx = (over: Partial<PatientContext> = {}): PatientContext => ({
   localId: 'BED-1',
@@ -17,6 +18,7 @@ const ctx = (over: Partial<PatientContext> = {}): PatientContext => ({
   weightKg: 1.5,
   ventilation: 'spontaneous',
   modifiers: [],
+  hepaticDysfunction: false,
   postOpDay: 1,
   infusions: [],
   ...over,
@@ -375,5 +377,193 @@ describe('eligibility screens at entry, not continuously', () => {
     const r = checkEligibility(ctx(), 6);
     expect(r.eligible).toBe(true);
     expect(planWeaning(14, 2).offPathway).toBe(false);
+  });
+});
+
+describe('escalation never discards a scored arm', () => {
+  // Regression guard. decideEscalation used to return early when the pain score
+  // was absent, which threw away the WAT-1: a withdrawal score of 11 of 12 at
+  // nine days of exposure reported low urgency and never mentioned withdrawal,
+  // while the same WAT-1 beside a reassuring N-PASS of 0 reported high urgency.
+  it('acts on severe withdrawal with no pain score recorded', () => {
+    const r = decideEscalation({
+      correctedNpass: null,
+      wat1: 11,
+      opioidExposureDays: 9,
+      recentUptitration: false,
+    });
+    expect(r.urgency).toBe('high');
+    expect(r.actions[0]).toMatch(/Give the PRN opioid dose/);
+    expect(r.drivers.join(' ')).toMatch(/WAT-1 11/);
+  });
+
+  it('acts on mid-band withdrawal with no pain score recorded', () => {
+    const r = decideEscalation({
+      correctedNpass: null,
+      wat1: 3,
+      opioidExposureDays: 9,
+      recentUptitration: false,
+    });
+    expect(r.urgency).toBe('medium');
+    expect(r.actions[0]).toMatch(/checklist before any pharmacological step/);
+  });
+
+  it('says which side of the decision is blind', () => {
+    const r = decideEscalation({
+      correctedNpass: null,
+      wat1: 11,
+      opioidExposureDays: 9,
+      recentUptitration: false,
+    });
+    expect(r.drivers.join(' ')).toMatch(/pain side of this decision is currently blind/);
+  });
+
+  // The invariant: an N-PASS of 0 contributes nothing, so replacing it with "not
+  // scored" must not change what the withdrawal arm concludes.
+  it('reaches the same urgency whether the pain score is absent or zero', () => {
+    for (let wat1 = 0; wat1 <= 12; wat1 += 1) {
+      const absent = decideEscalation({
+        correctedNpass: null, wat1, opioidExposureDays: 9, recentUptitration: false,
+      });
+      const zero = decideEscalation({
+        correctedNpass: 0, wat1, opioidExposureDays: 9, recentUptitration: false,
+      });
+      expect(absent.urgency).toBe(zero.urgency);
+    }
+  });
+
+  it('still ignores WAT-1 below the exposure trigger when no pain score exists', () => {
+    const r = decideEscalation({
+      correctedNpass: null,
+      wat1: 11,
+      opioidExposureDays: 3,
+      recentUptitration: false,
+    });
+    expect(r.urgency).toBe('low');
+  });
+
+  it('does not offer a reassuring headline when an applicable score is missing', () => {
+    const both = decideEscalation({
+      correctedNpass: null, wat1: null, opioidExposureDays: 3, recentUptitration: false,
+    });
+    expect(both.urgency).toBe('low');
+    expect(both.actions[0]).toMatch(/Complete an N-PASS/);
+    expect(both.headline).not.toMatch(/Continue the current plan/);
+
+    const wat1Missing = decideEscalation({
+      correctedNpass: 1, wat1: null, opioidExposureDays: 9, recentUptitration: false,
+    });
+    expect(wat1Missing.headline).toMatch(/Incomplete assessment/);
+    expect(wat1Missing.actions[0]).toMatch(/Complete a WAT-1/);
+  });
+
+  it('continues the plan only when everything applicable is scored and settled', () => {
+    const r = decideEscalation({
+      correctedNpass: 1, wat1: 1, opioidExposureDays: 9, recentUptitration: false,
+    });
+    expect(r.urgency).toBe('low');
+    expect(r.headline).toBe('Continue the current plan');
+  });
+
+  it('tolerates a non-finite exposure figure without inventing a withdrawal verdict', () => {
+    const r = decideEscalation({
+      correctedNpass: 1, wat1: 11, opioidExposureDays: Number.NaN, recentUptitration: false,
+    });
+    expect(r.urgency).toBe('low');
+  });
+});
+
+describe('consecutive elevated counting', () => {
+  // Pinned so that narrowing it to one instrument becomes a deliberate decision
+  // with the protocol owner, not an incidental refactor.
+  // See REVIEW_FLAGS['consecutive-elevated-mixed-instruments'].
+  it('counts a run that mixes instruments', () => {
+    expect(countConsecutiveElevated([
+      { scaleId: 'N_PASS', total: 5 },
+      { scaleId: 'WAT_1', total: 3 },
+    ])).toBe(2);
+  });
+
+  // The flag is about what the count MEANS, not about the count being reached
+  // sooner. Pinned because the opposite is an easy thing to assume: a mixed
+  // pair reaches the pause step with neither arm elevated twice in a row, but
+  // it takes exactly as many scores to get there as a same-instrument run.
+  it('reaches the same count for a mixed run as for a same-instrument run', () => {
+    const mixed = countConsecutiveElevated([
+      { scaleId: 'N_PASS', total: 5 },
+      { scaleId: 'WAT_1', total: 3 },
+    ]);
+    const sameNpass = countConsecutiveElevated([
+      { scaleId: 'N_PASS', total: 5 },
+      { scaleId: 'N_PASS', total: 5 },
+    ]);
+    const sameWat1 = countConsecutiveElevated([
+      { scaleId: 'WAT_1', total: 3 },
+      { scaleId: 'WAT_1', total: 3 },
+    ]);
+    expect(mixed).toBe(sameNpass);
+    expect(mixed).toBe(sameWat1);
+    expect(mixed).toBe(ESCALATION.consecutiveElevatedBeforePause);
+  });
+
+  it('resets when the most recent score is not elevated', () => {
+    expect(countConsecutiveElevated([
+      { scaleId: 'N_PASS', total: 9 },
+      { scaleId: 'N_PASS', total: 1 },
+    ])).toBe(0);
+  });
+
+  it('applies each instrument its own threshold', () => {
+    // 3 is elevated on WAT-1 and not on N-PASS
+    expect(countConsecutiveElevated([{ scaleId: 'WAT_1', total: 3 }])).toBe(1);
+    expect(countConsecutiveElevated([{ scaleId: 'N_PASS', total: 3 }])).toBe(0);
+  });
+});
+
+describe('declared exclusions are all enforced', () => {
+  it('excludes neuromuscular blockade', () => {
+    const r = checkEligibility(ctx({ modifiers: ['neuromuscular_blockade'] }), 2);
+    expect(r.eligible).toBe(false);
+    expect(r.exclusions.map((e) => e.key)).toContain('neuromuscular_blockade');
+  });
+
+  // Regression guard. ELIGIBILITY declared hepatic dysfunction an absolute
+  // exclusion, but PatientContext had no field for it and checkEligibility never
+  // tested it, so the exclusion could not fire for any infant.
+  it('excludes recorded hepatic dysfunction', () => {
+    const r = checkEligibility(ctx({ hepaticDysfunction: true }), 2);
+    expect(r.eligible).toBe(false);
+    expect(r.exclusions.map((e) => e.key)).toContain('hepatic_dysfunction');
+  });
+
+  it('enforces every exclusion the protocol declares', () => {
+    const declared = ELIGIBILITY.exclusions.map((e) => e.key).sort();
+    const enforced = checkEligibility(
+      ctx({ modifiers: ['neuromuscular_blockade'], hepaticDysfunction: true }),
+      2,
+    ).exclusions.map((e) => e.key).sort();
+    expect(enforced).toEqual(declared);
+  });
+
+  it('still screens an infant with neither as eligible', () => {
+    expect(checkEligibility(ctx(), 2).eligible).toBe(true);
+  });
+});
+
+describe('acetaminophen dosing states what it does not account for', () => {
+  it('warns, without altering the dose, when hepatic dysfunction is recorded', () => {
+    const plain = calculateInitialDoses(3, 39, ctx());
+    const hepatic = calculateInitialDoses(3, 39, ctx({ hepaticDysfunction: true }));
+
+    expect(plain.warnings).toHaveLength(0);
+    expect(hepatic.warnings.join(' ')).toMatch(/Hepatic dysfunction is recorded/);
+    expect(hepatic.warnings.join(' ')).toMatch(/does not invent one/);
+
+    // The figures themselves are unchanged: the tool reports the gap, it does
+    // not fabricate a reduction the pathway has not specified.
+    expect(hepatic.acetaminophen?.ivMgPerDose).toBe(plain.acetaminophen?.ivMgPerDose);
+    expect(hepatic.acetaminophen?.maxDailyMg).toBe(plain.acetaminophen?.maxDailyMg);
+    expect(hepatic.fentanyl?.infusionMcgPerHour).toBe(plain.fentanyl?.infusionMcgPerHour);
+    expect(hepatic.ok).toBe(true);
   });
 });

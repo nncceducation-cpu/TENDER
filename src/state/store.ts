@@ -35,6 +35,7 @@ export const EMPTY_CONTEXT: PatientContext = {
   weightKg: null,
   ventilation: 'spontaneous',
   modifiers: [],
+  hepaticDysfunction: false,
   postOpDay: null,
   infusions: [],
 };

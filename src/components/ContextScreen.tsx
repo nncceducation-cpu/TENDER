@@ -230,6 +230,32 @@ export const ContextScreen = () => {
             </div>
           </div>
 
+          <div>
+            <p className="text-sm font-medium text-slate-700 mb-2">Organ dysfunction</p>
+            <label
+              className={`flex gap-3 items-start p-3 rounded-lg border cursor-pointer transition ${
+                s.ctx.hepaticDysfunction
+                  ? 'border-amber-300 bg-amber-50'
+                  : 'border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={s.ctx.hepaticDysfunction}
+                onChange={(e) => s.patchContext({ hepaticDysfunction: e.target.checked })}
+              />
+              <span className="text-sm">
+                <span className="font-medium text-slate-800">Hepatic dysfunction</span>
+                <span className="block text-xs text-slate-600">
+                  An absolute exclusion from the standard pathway: it alters opioid and
+                  acetaminophen clearance and needs individualised dosing. Acetaminophen figures
+                  in Orders stay at the unmodified protocol dose, flagged.
+                </span>
+              </span>
+            </label>
+          </div>
+
           <label className="flex items-center gap-3 text-sm text-slate-700">
             <input
               type="checkbox"

@@ -19,10 +19,14 @@ export type SurgeryClass = 'minor' | 'major' | 'unclassified';
 
 /**
  * v1 classified by case-insensitive substring match on free text, so any label
- * containing a minor-surgery substring silently downgraded the pathway and an
- * unmatched free-text entry defaulted to the full protocol with no warning.
- * Classification is now exact-match against the curated list, and anything
- * unrecognised is returned as `unclassified` for the clinician to resolve.
+ * containing a minor-surgery substring silently downgraded the pathway.
+ * Classification is now exact-match against the curated list.
+ *
+ * Unrecognised non-empty text returns `major`, which applies the full protocol
+ * and is the conservative direction. Only an empty entry returns
+ * `unclassified`. An earlier version of this comment claimed unrecognised text
+ * returned `unclassified` for the clinician to resolve, which the code has never
+ * done; whether it should is REVIEW_FLAGS['minor-surgery-substring-match'].
  */
 export const classifySurgery = (surgeryType: string): SurgeryClass => {
   const normalised = surgeryType.trim().toLowerCase();
@@ -61,6 +65,12 @@ export const checkEligibility = (
 
   if (ctx.modifiers.includes('neuromuscular_blockade')) {
     exclusions.push(ELIGIBILITY.exclusions.find((e) => e.key === 'neuromuscular_blockade')!);
+  }
+  /* ELIGIBILITY declares two absolute exclusions and only one was ever tested,
+     because PatientContext had no way to express hepatic dysfunction at all.
+     Every infant therefore screened eligible on that criterion. */
+  if (ctx.hepaticDysfunction) {
+    exclusions.push(ELIGIBILITY.exclusions.find((e) => e.key === 'hepatic_dysfunction')!);
   }
   if (ctx.modifiers.includes('encephalopathy')) {
     notes.push(
@@ -141,8 +151,16 @@ export const calculateInitialDoses = (
   const ivMgPerDose = band.mgPerKg * weightKg;
   const maxDailyMg = band.maxDailyMgPerKg * weightKg;
 
-  if (ctx.modifiers.length > 0 && errors.length === 0) {
-    // Nothing to add here; hepatic dysfunction is handled below via context.
+  /* Hepatic dysfunction does not modify acetaminophen dosing here, and the
+     protocol has not yet said whether it should. This used to be an empty block
+     whose comment claimed the case was "handled below via context", which it was
+     not, so the gap recorded in REVIEW_FLAGS was invisible at the point of care
+     and looked closed to anyone reading the engine. Stating it is not the same
+     as inventing a dose reduction. */
+  if (ctx.hepaticDysfunction) {
+    warnings.push(
+      'Hepatic dysfunction is recorded. These acetaminophen figures are the unmodified protocol doses: the pathway does not specify a reduction, and this tool does not invent one. Acetaminophen is the drug hepatic dysfunction most directly affects, and the same flag excludes this infant from the standard pathway. Dose on individual assessment.',
+    );
   }
 
   const [lo, hi] = POSTOP_DOSING.acetaminophen.oralMgPerKgRange;
@@ -350,6 +368,16 @@ const ONGOING_CADENCE = `Return to N-PASS q${ASSESSMENT_SCHEDULE.intensiveInterv
  * counts scores taken 30 to 60 minutes apart; this function counts scores in
  * order and does not police the interval, because the timestamps in a session
  * reflect when the nurse had a hand free rather than the protocol clock.
+ *
+ * Each score is compared against the threshold for its own instrument, so a run
+ * may MIX instruments: an elevated N-PASS followed by an elevated WAT-1 counts
+ * as two. The count is not lower for a mixed run than for a same-instrument one
+ * -- both reach two on the second elevated score -- but the two instruments
+ * measure different things, so a mixed pair reaches the pause threshold without
+ * either pain or withdrawal having been elevated twice in a row. Pausing the
+ * wean is the conservative direction, so the behaviour is left as it is rather
+ * than quietly narrowed, and the question of what the pathway intends is
+ * recorded as REVIEW_FLAGS['consecutive-elevated-mixed-instruments'].
  */
 export const countConsecutiveElevated = (
   scores: { scaleId: string; total: number }[],
@@ -396,22 +424,32 @@ export const decideEscalation = (params: {
     consecutiveElevated = 1,
   } = params;
   const drivers: string[] = [];
-  const wat1Applies = opioidExposureDays > ASSESSMENT_SCHEDULE.wat1.triggerExposureDays;
+  const wat1Applies =
+    Number.isFinite(opioidExposureDays) &&
+    opioidExposureDays > ASSESSMENT_SCHEDULE.wat1.triggerExposureDays;
 
-  if (correctedNpass === null) {
-    return {
-      urgency: 'low',
-      headline: 'No current pain score',
-      actions: ['Complete an N-PASS assessment before acting on this panel.'],
-      drivers: [],
-      reassessInMinutes: null,
-    };
-  }
-
-  const painHigh = correctedNpass >= ESCALATION.npassBolusThreshold;
-  const painMid = correctedNpass >= ESCALATION.npassChecklistThreshold;
+  /**
+   * The two arms are evaluated independently.
+   *
+   * This function used to return early when `correctedNpass` was null, which
+   * discarded the WAT-1 entirely. A WAT-1 of 11 of 12 at nine days of exposure
+   * with no pain score recorded returned low urgency and did not mention
+   * withdrawal at all, while the same WAT-1 alongside a reassuring N-PASS of 0
+   * returned high urgency and a rescue dose. Recording a calm pain score made
+   * the tool escalate and recording nothing made it say continue, which is the
+   * failure direction that withholds treatment. A missing score is now a stated
+   * blind spot, never a downgrade.
+   */
+  const painHigh = correctedNpass !== null && correctedNpass >= ESCALATION.npassBolusThreshold;
+  const painMid = correctedNpass !== null && correctedNpass >= ESCALATION.npassChecklistThreshold;
   const withdrawalHigh = wat1Applies && wat1 !== null && wat1 >= ESCALATION.wat1BolusThreshold;
   const withdrawalMid = wat1Applies && wat1 !== null && wat1 >= ESCALATION.wat1ChecklistThreshold;
+
+  if (correctedNpass === null) {
+    drivers.push(
+      'No N-PASS score is recorded, so the pain side of this decision is currently blind.',
+    );
+  }
 
   if (painHigh) drivers.push(`Corrected N-PASS ${correctedNpass} is at or above ${ESCALATION.npassBolusThreshold}.`);
   else if (painMid) drivers.push(`Corrected N-PASS ${correctedNpass} is at or above ${ESCALATION.npassChecklistThreshold}.`);
@@ -487,6 +525,33 @@ export const decideEscalation = (params: {
       actions,
       drivers: [...drivers, strikeNote],
       reassessInMinutes: ASSESSMENT_SCHEDULE.reassessAfterInterventionMinutes[0],
+    };
+  }
+
+  /* Nothing is elevated. If an arm that applies has not been scored, the honest
+     answer is that the question has not been asked yet, not that the plan may
+     continue. */
+  const unscored: string[] = [];
+  if (correctedNpass === null) unscored.push('an N-PASS assessment');
+  if (wat1Applies && wat1 === null) unscored.push('a WAT-1 assessment');
+
+  if (unscored.length > 0) {
+    return {
+      urgency: 'low',
+      headline:
+        unscored.length === 2
+          ? 'Nothing scored yet: this panel cannot advise'
+          : `Incomplete assessment: ${unscored[0]} is outstanding`,
+      actions: [
+        correctedNpass === null
+          ? 'Complete an N-PASS assessment before acting on this panel.'
+          : 'Complete a WAT-1 assessment before acting on this panel.',
+        ...(correctedNpass !== null || !wat1Applies || wat1 !== null
+          ? []
+          : ['Complete a WAT-1 assessment as well; opioid exposure has passed the trigger.']),
+      ],
+      drivers,
+      reassessInMinutes: null,
     };
   }
 

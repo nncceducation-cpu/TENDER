@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck, lint, test and build
+        run: npm run verify
+      - name: Stage on-device model assets
+        run: npm run fetch:models
+      - name: Build with deployment settings
+        env:
+          TENDER_BASE: /${{ github.event.repository.name }}/
+          TENDER_PUBLIC_DEMO: 'true'
+        run: npx vite build

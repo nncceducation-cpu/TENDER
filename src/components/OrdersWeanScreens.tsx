@@ -48,6 +48,15 @@ export const OrdersScreen = () => {
           </Callout>
         ) : (
           <div className="space-y-5">
+            {/* DosingResult carries warnings as well as errors. This screen
+                rendered only the errors, so anything the engine warned about was
+                computed and discarded. */}
+            {doses.warnings.map((w) => (
+              <Callout key={w} tone="warn">
+                {w}
+              </Callout>
+            ))}
+
             {surgeryClass === 'minor' ? (
               <Callout tone="ok" title="Minor surgery">
                 Consider stopping fentanyl immediately post-operatively based on comfort scoring. The

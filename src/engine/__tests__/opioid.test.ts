@@ -128,8 +128,15 @@ describe('the breakthrough dose conflict this tool used to hide', () => {
 describe('transparency', () => {
   it('states every conversion ratio it used', () => {
     const r = ok(convertOpioids({ weightKg: 3, ivFentanyl: { infusionPerKgPerHour: 1, unit: 'mcg' } }));
-    expect(r.assumptions).toHaveLength(4);
-    expect(r.assumptions.join(' ')).toContain(`1:${OPIOID_CONVERSION.ivFentanylToIvMorphine}`);
+    // Asserted by content rather than by array length: the point is that each
+    // ratio is disclosed, and a length check also fails when an unrelated
+    // assumption is added, which says nothing about transparency.
+    const stated = r.assumptions.join(' ');
+    expect(stated).toContain(`1:${OPIOID_CONVERSION.ivFentanylToIvMorphine}`);
+    expect(stated).toContain(`1:${OPIOID_CONVERSION.ivHydromorphoneToIvMorphine}`);
+    expect(stated).toContain(`1:${OPIOID_CONVERSION.ivMorphineToOralMorphine}`);
+    expect(stated).toContain(`1:${OPIOID_CONVERSION.oralHydromorphoneToOralMorphine}`);
+    expect(r.assumptions.length).toBeGreaterThanOrEqual(4);
   });
 
   it('warns when the fentanyl ratio departs from the commonly published 1:100', () => {
@@ -137,5 +144,84 @@ describe('transparency', () => {
     if (OPIOID_CONVERSION.ivFentanylToIvMorphine !== 100) {
       expect(r.warnings.join(' ')).toMatch(/1:100/);
     }
+  });
+});
+
+describe('the oral arm offers the same cross-tolerance choice as the IV arm', () => {
+  it('reduces only the dose being rotated off IV', () => {
+    const r = ok(convertOpioids({ weightKg: 3, ivMorphine: { infusionPerKgPerHour: 10, unit: 'mcg' } }));
+    const reduction = OPIOID_CONVERSION.incompleteCrossToleranceReduction;
+
+    // unreduced figure unchanged, so existing callers keep their meaning
+    expect(r.oral.morphine.dailyMcg).toBeCloseTo(
+      r.totalIvMorphineEquivalentMcg * OPIOID_CONVERSION.ivMorphineToOralMorphine, 6);
+    expect(r.oral.reduced.morphine.dailyMcg).toBeCloseTo(
+      r.oral.morphine.dailyMcg * (1 - reduction), 6);
+    expect(r.oral.reductionPercent).toBeCloseTo(reduction * 100, 6);
+  });
+
+  it('does not reduce an oral dose the infant is already taking', () => {
+    // No IV at all: nothing is being rotated, so nothing should be reduced.
+    const r = ok(convertOpioids({
+      weightKg: 3,
+      oralMorphineDaily: { amount: 2, unit: 'mg' },
+    }));
+    expect(r.oral.morphine.dailyMcg).toBe(2000);
+    expect(r.oral.reduced.morphine.dailyMcg).toBe(2000);
+  });
+
+  it('reduces the rotated part while carrying the existing part through intact', () => {
+    const reduction = OPIOID_CONVERSION.incompleteCrossToleranceReduction;
+    const r = ok(convertOpioids({
+      weightKg: 3,
+      ivMorphine: { infusionPerKgPerHour: 10, unit: 'mcg' },
+      oralMorphineDaily: { amount: 1, unit: 'mg' },
+    }));
+    const rotated = r.totalIvMorphineEquivalentMcg * OPIOID_CONVERSION.ivMorphineToOralMorphine;
+    expect(r.oral.morphine.dailyMcg).toBeCloseTo(rotated + 1000, 6);
+    expect(r.oral.reduced.morphine.dailyMcg).toBeCloseTo(rotated * (1 - reduction) + 1000, 6);
+  });
+
+  it('keeps the hydromorphone schedule consistent with the morphine one', () => {
+    const r = ok(convertOpioids({ weightKg: 3, ivMorphine: { infusionPerKgPerHour: 10, unit: 'mcg' } }));
+    expect(r.oral.reduced.hydromorphone.dailyMcg).toBeCloseTo(
+      r.oral.reduced.morphine.dailyMcg / OPIOID_CONVERSION.oralHydromorphoneToOralMorphine, 6);
+  });
+
+  it('states that the reduction applies to the rotated dose only', () => {
+    const r = ok(convertOpioids({ weightKg: 3, ivMorphine: { infusionPerKgPerHour: 10, unit: 'mcg' } }));
+    expect(r.assumptions.join(' ')).toMatch(/rotated off IV only/);
+  });
+});
+
+describe('breakthrough dose disagreement is flagged either way', () => {
+  it('flags a derived dose well below the protocol bolus', () => {
+    // A small morphine infusion makes 10% of the daily dose much less fentanyl
+    // than the protocol's 1 mcg/kg bolus.
+    const r = ok(convertOpioids({ weightKg: 3, ivMorphine: { infusionPerKgPerHour: 0.5, unit: 'mcg' } }));
+    const conflict = r.breakthrough.conflictsWithProtocolBolus;
+    expect(conflict).not.toBeNull();
+    expect(conflict!.ratio).toBeLessThan(1);
+    expect(r.warnings.join(' ')).toMatch(/well below/);
+  });
+
+  it('still flags a derived dose well above it', () => {
+    const r = ok(convertOpioids({ weightKg: 3, ivFentanyl: { infusionPerKgPerHour: 2, unit: 'mcg' } }));
+    expect(r.breakthrough.conflictsWithProtocolBolus).not.toBeNull();
+    expect(r.warnings.join(' ')).toMatch(/well above/);
+  });
+
+  it('stays quiet when the two rules roughly agree', () => {
+    // Choose an infusion whose 10% breakthrough lands near 1 mcg/kg fentanyl.
+    const r = ok(convertOpioids({ weightKg: 3, ivFentanyl: { infusionPerKgPerHour: 0.42, unit: 'mcg' } }));
+    const ratio = (r.totalIvMorphineEquivalentMcg * r.breakthrough.fractionOfDailyDose)
+      / OPIOID_CONVERSION.ivFentanylToIvMorphine / (POSTOP_DOSING.fentanyl.bolusMcgPerKg * 3);
+    expect(ratio).toBeGreaterThan(1 / 1.5);
+    expect(ratio).toBeLessThan(1.5);
+    expect(r.breakthrough.conflictsWithProtocolBolus).toBeNull();
+  });
+
+  it('does not flag a conflict when nothing is prescribed', () => {
+    expect(ok(convertOpioids({ weightKg: 3 })).breakthrough.conflictsWithProtocolBolus).toBeNull();
   });
 });
