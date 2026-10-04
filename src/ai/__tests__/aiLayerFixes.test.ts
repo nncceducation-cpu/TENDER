@@ -229,7 +229,8 @@ describe('a frame below the quality gate carries no COMFORT level', () => {
     setImageSize(1280, 960);
     const frames = await analyseStills(service(), [{ name: 'good.jpg', dataUrl: 'data:,' }]);
     expect(frames[0].quality).toBeGreaterThanOrEqual(0.45);
-    expect(frames[0].assessment).not.toBeNull();
+    expect(frames[0].geometry).not.toBeNull();
+    expect(frames[0].assessment).toBeNull();
   });
 
   it('never surfaces a level for a frame it stored below the gate', async () => {

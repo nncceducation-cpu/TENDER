@@ -8,7 +8,7 @@ On-device clinical decision support for neonatal pain assessment, post-operative
 analgesia and opioid weaning. Successor to PainWise NICU, rebuilt around the
 Alberta Children's Hospital NICU protocol.
 
-> **Research software release 2.8.1.** Not validated at any site, not reviewed by a research ethics
+> **Research software release 2.8.2.** Not validated at any site, not reviewed by a research ethics
 > board or a regulator, and carrying open questions about opioid dosing. Nothing
 > it produces should be used to treat an infant. See Status and safety below.
 
@@ -26,11 +26,10 @@ Release verification and photo-test limitations: [Stress-test report](docs/STRES
 Expanded photo, expression-phase and clip tests: [2.8.0 report](docs/STRESS-TEST-2.8.0.md),
 [source library](docs/MEDIA-LIBRARY-2.8.0.json), and [reproduction instructions](docs/MEDIA-TESTING.md).
 
-For one photograph without calm baseline images, choose **Static analysis → Score one image
-without a baseline → Score this image**. The warning-labelled result is an experimental,
-uncalibrated COMFORT facial tension item (2–5), not a complete pain score. Quality and
-stability checks still apply; accepting the suggested item requires confirmation on the
-scoring form.
+For one photograph without a baseline, choose **Static analysis → Review one image
+without a baseline → Review this image**. The report displays technical measurements
+and lets you confirm an observed relaxed facial item as 1/5. It does not produce an
+automatic COMFORT level or complete pain score.
 
 ## Quick start
 
@@ -98,10 +97,8 @@ infant, a baseline already recorded this session, the median of the images being
 scored, or none at all. The last two exist because a calm photograph often does
 not, and refusing to look is not the only honest response to that. Referencing
 material against itself under-reports if the infant was distressed throughout,
-and says so. With no reference at all, a single photograph is read from facial
-geometry normalised to interocular distance, which measures the image rather than
-classifying it, and produces a COMFORT facial tension level of 2 to 5 with the
-raw activations alongside. Individual NFCS actions are still not called present
+and says so. With no reference at all, a single photograph supports technical
+measurements and clinician review, without an automatic muscle-tension score. Individual NFCS actions are still not called present
 or absent, since that does need a per-infant baseline. A single
 photograph cannot produce an epoch score in any mode, because NFCS sums
 per-second coding across a window; a set sampled from one period can, since the
@@ -244,3 +241,5 @@ signal from a signal acquisition system. Treat it as investigational.
 Not yet licensed. Add one before this leaves the unit.
 
 In a report, **I confirm relaxed facial muscles — offer 1/5** records a human observation separately from the model estimate. Closed eyelids alone no longer produce high facial tension. The scoring screen also compares PIPP-R, BIIP and the other instruments; BIIP is documented but is not yet calculated. See [release verification](docs/SINGLE-IMAGE-SCORING-2.8.1.md).
+
+Photo reports no longer calculate automatic COMFORT levels or tension percentages. See [correction and limitations](docs/PHOTO-SCORING-CORRECTION-2.8.2.md).
