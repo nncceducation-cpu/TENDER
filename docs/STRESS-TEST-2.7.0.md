@@ -84,7 +84,9 @@ No thresholds were tuned to fit these two photographs.
 - No-face images no longer disappear from a mixed report. Low-quality cases
   show their actual rejection reasons. Exposure/contrast limitations are visible.
 - Unstable geometric readings retain their range and cannot propose one definite
-  level. Every still reading states the sleep/blink/cry/pain ambiguity.
+  level. The annotated-image caption carries the same range as the screen.
+  Every still reading states the sleep/blink/cry/pain ambiguity. Browser automation
+  could not confirm the final image download, so download completion is not claimed.
 
 No dose or clinical threshold changed. The site displays **2.7.0 · research use**
 and a **Research software release. Not for patient care.** notice.

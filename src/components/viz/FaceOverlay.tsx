@@ -112,10 +112,12 @@ export const FaceOverlay = ({
   imageUrl,
   assessment,
   name,
+  levelText = String(assessment.facialTension),
 }: {
   imageUrl: string;
   assessment: SingleImageAssessment;
   name: string;
+  levelText?: string;
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showOverlay, setShowOverlay] = useState(true);
@@ -261,7 +263,7 @@ export const FaceOverlay = ({
       ctx.textBaseline = 'alphabetic';
       ctx.font = `bold ${Math.round(23 * chrome)}px system-ui, sans-serif`;
       ctx.fillText(
-        `COMFORT facial tension ${assessment.facialTension}`,
+        `COMFORT facial tension ${levelText}`,
         bx + 16 * chrome,
         by + 29 * chrome,
       );
@@ -281,7 +283,7 @@ export const FaceOverlay = ({
     return () => {
       cancelled = true;
     };
-  }, [imageUrl, assessment, showOverlay]);
+  }, [imageUrl, assessment, showOverlay, levelText]);
 
   const download = () => {
     const canvas = canvasRef.current;
