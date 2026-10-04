@@ -61,7 +61,7 @@ test('provider errors are sanitized and never become a zero pain score', async (
   });
 });
 test('quota exhaustion is distinguished from temporary rate limits without exposing provider text', async () => {
-  for (const [code, expected] of [['insufficient_quota', 'provider_quota'], ['rate_limit_exceeded', 'provider_rate_limit']]) {
+  for (const [code, expected] of [['insufficient_quota', 'provider_quota'], ['credit_balance_exhausted', 'provider_quota'], ['organization_spend_limit_exceeded', 'provider_quota'], ['project_spend_limit_exceeded', 'provider_quota'], ['organization_usage_limit_exceeded', 'provider_quota'], ['rate_limit_exceeded', 'provider_rate_limit']]) {
     await withServer(() => new Response(JSON.stringify({ error: { code, message: 'private upstream detail' } }), { status: 429 }), async url => {
       const response = await send(url);
       assert.equal(response.status, 502);

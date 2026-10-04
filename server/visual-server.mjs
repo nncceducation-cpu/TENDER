@@ -69,7 +69,7 @@ export function createVisualServer(env = process.env, request = fetch) {
           // Inspect only provider error codes; never expose its message or body.
           let code;
           try { code = (await response.json())?.error?.code; } catch { /* Non-JSON failure. */ }
-          if (response.status === 429 && code === 'insufficient_quota') return reply(502, {
+          if (response.status === 429 && ['insufficient_quota', 'credit_balance_exhausted', 'organization_spend_limit_exceeded', 'project_spend_limit_exceeded', 'organization_usage_limit_exceeded'].includes(code)) return reply(502, {
             error: 'OpenAI API quota is unavailable. Check API billing, credits and project spending limits in your OpenAI account. A ChatGPT subscription does not provide API credits. No score was produced.',
             errorCode: 'provider_quota',
           });
