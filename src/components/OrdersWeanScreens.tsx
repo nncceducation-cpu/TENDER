@@ -263,6 +263,20 @@ export const WeanScreen = () => {
 
           <p className="text-sm text-slate-700">{plan.rule.label}</p>
 
+          {plan.stepsToZero !== null && plan.reductionPerStep !== null && s.currentInfusionMcgPerKgPerHour !== null && (
+            <figure className="rounded-xl border border-teal-200 bg-teal-50 p-4">
+              <figcaption className="font-semibold text-teal-950">Planned taper · from the original infusion</figcaption>
+              <p className="text-xs text-teal-900 mt-1">Planning illustration, not administered doses. Each step is conditional on reassessment; timing follows the interval above.</p>
+              <svg viewBox="0 0 600 180" role="img" aria-label={`Planning illustration: original fentanyl infusion ${s.currentInfusionMcgPerKgPerHour} mcg/kg/hr reduced over ${plan.stepsToZero} steps to zero`} className="w-full mt-3">
+                <line x1="40" y1="145" x2="570" y2="145" stroke="#94a3b8" />
+                <line x1="40" y1="25" x2="40" y2="145" stroke="#94a3b8" />
+                <path d={Array.from({ length: plan.stepsToZero + 1 }, (_, i) => `${i === 0 ? 'M' : 'H'} ${40 + i * 530 / plan.stepsToZero!} ${i === 0 ? '25' : `V ${145 - 120 * Math.max(0, 1 - i * plan.rule.reductionPercent / 100)}`}`).join(' ')} fill="none" stroke="#0f766e" strokeWidth="4" strokeLinejoin="round" />
+                <text x="45" y="17" fontSize="12" fill="#134e4a">{s.currentInfusionMcgPerKgPerHour.toFixed(2)} mcg/kg/hr</text>
+                <text x="40" y="170" fontSize="12" fill="#334155">Start</text><text x="500" y="170" fontSize="12" fill="#334155">Step {plan.stepsToZero} · zero</text>
+              </svg>
+            </figure>
+          )}
+
           <ul className="text-sm text-slate-600 list-disc list-inside space-y-1">
             {plan.notes.map((n) => (
               <li key={n}>{n}</li>

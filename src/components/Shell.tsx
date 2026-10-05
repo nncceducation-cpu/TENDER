@@ -1,8 +1,9 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Menu, X } from 'lucide-react';
 import { useStore } from '../state/store';
 import { PROTOCOL_VERSION } from '../data/protocol/ach';
 import { NAV_GROUPS, SCREEN_META } from './nav';
+import { CaseJourney } from './CaseJourney';
 
 /**
  * Application shell.
@@ -127,6 +128,8 @@ export const Shell = ({ children }: { children: ReactNode }) => {
   const localId = useStore((s) => s.ctx.localId);
   const clinician = useStore((s) => s.clinician);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [presentation, setPresentation] = useState(false);
+  useEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' }); }, [screen]);
   const meta = SCREEN_META[screen];
 
   const initials =
@@ -212,7 +215,7 @@ export const Shell = ({ children }: { children: ReactNode }) => {
         </header>
 
         <main className="flex-1 px-4 sm:px-6 py-6">
-          <div className="max-w-6xl mx-auto">{children}</div>
+          <div className="max-w-6xl mx-auto"><CaseJourney active={presentation} onToggle={() => { setPresentation(!presentation); if (!presentation) useStore.getState().setScreen('context'); }} />{children}</div>
         </main>
 
         <footer className="border-t border-slate-200 bg-white">
